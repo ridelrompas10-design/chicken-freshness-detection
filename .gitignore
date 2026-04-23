@@ -1,0 +1,28 @@
+# Dataset jangan diupload (terlalu besar)
+dataset/
+
+# File Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+.env
+
+# VSCode
+.vscode/
+
+# File sementara
+*.log
+*.tmp
+
+# File Python lokal yang tidak dibutuhkan server
+uji_kamera.py
+test_gambar.py
+cek_dataset.py
+train_model.py
+esp32_code/
