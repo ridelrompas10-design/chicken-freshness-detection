@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deteksi Kesegaran Daging Ayam</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; color: #ddd; font-family: monospace; padding: 12px; }
+  h1 { font-size: 14px; color: #aaa; margin-bottom: 12px; letter-spacing: 1px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .panel { background: #1a1a1a; border: 0.5px solid #333; border-radius: 8px; padding: 12px; }
+  .panel h2 { font-size: 10px; color: #555; letter-spacing: 1px; margin-bottom: 10px;
+              border-bottom: 0.5px solid #222; padding-bottom: 6px; }
+
+  video, canvas { width: 100%; border-radius: 6px; background: #0a0a0a; display: block; }
+  #cam-wrap { position: relative; }
+  #cam-status { position: absolute; bottom: 8px; left: 8px; font-size: 11px;
+                padding: 2px 10px; border-radius: 4px; }
+  .detected { background: #14532d; color: #86efac; border: 0.5px solid #16a34a; }
+  .not-detected { background: #1a1a1a; color: #555; border: 0.5px solid #333; }
+
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+  button { padding: 10px 6px; border-radius: 7px; font-size: 12px; font-family: monospace;
+           cursor: pointer; border: 0.5px solid; }
+  #btn-cam    { background: #0f2e1a; border-color: #16a34a; color: #86efac; }
+  #btn-detect { background: #1e1b4b; border-color: #4f46e5; color: #a5b4fc; }
+  #btn-pred   { background: #2d1515; border-color: #dc2626; color: #fca5a5; }
+
+  .result-row { display: flex; justify-content: space-between;
+                align-items: center; padding: 6px 0;
+                border-bottom: 0.5px solid #222; }
+  .result-row:last-child { border: none; }
+  .r-label { font-size: 12px; color: #777; }
+  .r-val   { font-size: 12px; font-weight: bold; }
+  .green { color: #22c55e; } .orange { color: #f97316; } .red { color: #ef4444; }
+
+  .bar-wrap { width: 80px; height: 5px; background: #222; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+
+  #status-label { font-size: 18px; font-weight: bold; margin: 8px 0 4px; }
+  #status-conf  { font-size: 11px; color: #555; }
+  #durasi-val   { font-size: 28px; font-weight: bold; color: #22c55e; }
+  #durasi-unit  { font-size: 11px; color: #555; margin-top: 2px; }
+  #saran-val    { font-size: 11px; color: #888; margin-top: 8px; }
+  #estimasi-val { font-size: 11px; color: #444; margin-top: 4px; }
+
+  .sensor-row { margin-top: 8px; font-size: 11px; color: #555; }
+  .loading { color: #555; font-size: 12px; padding: 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>SISTEM DETEKSI KESEGARAN DAGING AYAM</h1>
+
+<div id="cam-panel" class="panel" style="margin-bottom:10px">
+  <h2>KAMERA</h2>
+  <div id="cam-wrap">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none"></canvas>
+    <span id="cam-status" class="not-detected">Kamera belum aktif</span>
+  </div>
+  <div class="btn-row">
+    <button id="btn-cam"    onclick="toggleCamera()">Kamera ON</button>
+    <button id="btn-detect" onclick="detectMeat()">Deteksi</button>
+    <button id="btn-pred"   onclick="predict()">Prediksi</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>STATUS KESEGARAN</h2>
+    <div id="kesegaran-content">
+      <div class="loading">Belum ada data</div>
+    </div>
+    <div id="status-label" style="color:#555">-</div>
+    <div id="status-conf"></div>
+    <div class="sensor-row">Kadar air: <span id="kadar-air-val">-</span>%</div>
+  </div>
+
+  <div class="panel">
+    <h2>PREDIKSI KETAHANAN</h2>
+    <div id="durasi-val" style="color:#555">-</div>
+    <div id="durasi-unit"></div>
+    <div id="saran-val"></div>
+    <div id="estimasi-val"></div>
+  </div>
+</div>
+
+<script>
+  let stream     = null
+  let cameraOn   = false
+  let isDetected = false
+  const video    = document.getElementById('video')
+  const canvas   = document.getElementById('canvas')
+  const ctx      = canvas.getContext('2d')
+  const SERVER   = ''
+
+  async function toggleCamera() {
+    const btn = document.getElementById('btn-cam')
+    if (!cameraOn) {
+      try {
+        stream   = await navigator.mediaDevices.getUserMedia({ video: true })
+        video.srcObject = stream
+        cameraOn = true
+        btn.textContent = 'Kamera OFF'
+        btn.style.background = '#2e1a0f'
+        btn.style.borderColor = '#dc4e0f'
+        setStatus('Arahkan ke daging ayam...', 'not-detected')
+      } catch(e) {
+        alert('Gagal akses kamera: ' + e.message)
+      }
+    } else {
+      if (stream) stream.getTracks().forEach(t => t.stop())
+      video.srcObject = null
+      cameraOn   = false
+      isDetected = false
+      btn.textContent = 'Kamera ON'
+      btn.style.background = '#0f2e1a'
+      btn.style.borderColor = '#16a34a'
+      setStatus('Kamera belum aktif', 'not-detected')
+    }
+  }
+
+  function setStatus(text, cls) {
+    const el = document.getElementById('cam-status')
+    el.textContent = text
+    el.className   = cls
+  }
+
+  function captureFrame() {
+    canvas.width  = video.videoWidth
+    canvas.height = video.videoHeight
+    ctx.drawImage(video, 0, 0)
+    return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9))
+  }
+
+  async function detectMeat() {
+    if (!cameraOn) { alert('Nyalakan kamera dulu!'); return }
+    setStatus('Mendeteksi...', 'not-detected')
+    const blob = await captureFrame()
+    const fd   = new FormData()
+    fd.append('image', blob, 'frame.jpg')
+    try {
+      const res  = await fetch(SERVER + '/predict', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.label) {
+        isDetected = true
+        setStatus('Daging terdeteksi — tekan Prediksi', 'detected')
+      }
+    } catch(e) {
+      setStatus('Error: ' + e.message, 'not-detected')
+    }
+  }
+
+  async function predict() {
+    if (!cameraOn) { alert('Nyalakan kamera dulu!'); return }
+    setStatus('Menganalisis...', 'not-detected')
+    const blob = await captureFrame()
+    const fd   = new FormData()
+    fd.append('image', blob, 'frame.jpg')
+    try {
+      const res  = await fetch(SERVER + '/predict', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.error) { alert('Error: ' + data.error); return }
+      tampilHasil(data)
+      setStatus('Prediksi selesai', 'detected')
+    } catch(e) {
+      alert('Gagal koneksi ke server: ' + e.message)
+    }
+  }
+
+  function tampilHasil(data) {
+    const warna = { 'Segar': '#22c55e', 'Setengah': '#f97316', 'Busuk': '#ef4444' }
+    const wc    = warna[data.label] || '#aaa'
+
+    // Panel kesegaran
+    const detail  = data.detail || {}
+    const classes = ['Busuk','Segar','Setengah']
+    const wmap    = { Busuk:'#ef4444', Segar:'#22c55e', Setengah:'#f97316' }
+    let html = ''
+    classes.forEach(cls => {
+      const p = detail[cls] || 0
+      html += `<div class="result-row">
+        <span class="r-label">${cls}</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${wmap[cls]}"></div></div>
+        <span class="r-val" style="color:${wmap[cls]}">${p.toFixed(1)}%</span>
+      </div>`
+    })
+    document.getElementById('kesegaran-content').innerHTML = html
+
+    const lbl  = document.getElementById('status-label')
+    lbl.textContent = data.label.toUpperCase()
+    lbl.style.color = wc
+    document.getElementById('status-conf').textContent  = `Keyakinan: ${data.confidence}%`
+    document.getElementById('kadar-air-val').textContent = data.kadar_air || '-'
+
+    // Panel ketahanan
+    document.getElementById('durasi-val').textContent  = data.durasi || '-'
+    document.getElementById('durasi-val').style.color  = wc
+    document.getElementById('durasi-unit').textContent = 'Estimasi ketahanan'
+    document.getElementById('saran-val').textContent   = data.saran || ''
+
+    const est = new Date()
+    const jam = data.durasi?.includes('hari')
+      ? parseInt(data.durasi) * 24
+      : (parseInt(data.durasi) || 0)
+    est.setHours(est.getHours() + jam)
+    document.getElementById('estimasi-val').textContent =
+      `Estimasi: ${est.toLocaleDateString('id-ID', {day:'numeric',month:'short',year:'numeric'})}`
+  }
+</script>
+</body>
+</html>
