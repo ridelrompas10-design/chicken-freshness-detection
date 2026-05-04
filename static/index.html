@@ -5,17 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deteksi Kesegaran Daging Ayam</title>
 
-  <!-- CSS -->
-  <link rel="stylesheet" href="static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
 <body>
 
-  <!-- CONTEN UTAMA (tambahkan UI kamu di sini) -->
   <h1>Deteksi Kesegaran Daging Ayam</h1>
 
-  <!-- SCRIPT -->
- <script src="/static/js/script.js"></script>
+  <!-- VIDEO CAMERA -->
+  <video id="video" autoplay playsinline width="300"></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <!-- BUTTON -->
+  <div>
+    <button onclick="toggleCamera()" id="btn-cam">Kamera ON</button>
+    <button onclick="detectMeat()">Deteksi</button>
+    <button onclick="predict()">Prediksi</button>
+  </div>
+
+  <!-- STATUS -->
+  <p id="cam-status">Kamera belum aktif</p>
+
+  <!-- HASIL -->
+  <div id="result"></div>
+
+  <!-- JS -->
+  <script src="/static/js/script.js"></script>
 
 </body>
 </html>
