@@ -25,6 +25,7 @@ h1 {
 video {
     width: 400px;
     border-radius: 10px;
+    background: black;
 }
 
 canvas {
@@ -46,14 +47,20 @@ button {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    font-weight: bold;
 }
 
 button:hover {
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
 #btn-cam {
-    background: green;
+    background: #22c55e;
+    color: white;
+}
+
+.btn-danger {
+    background: #ef4444;
     color: white;
 }
 
@@ -73,9 +80,4 @@ button:hover {
 
 .btn-group {
     margin-top: 8px;
-}
-
-.btn-danger {
-    background: #ef4444;
-    color: white;
 }

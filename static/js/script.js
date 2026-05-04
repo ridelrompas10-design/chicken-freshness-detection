@@ -7,7 +7,7 @@ const ctx = canvas.getContext('2d')
 const cameraSelect = document.getElementById('cameraSelect')
 
 // =====================
-// LOAD CAMERA LIST
+// LOAD CAMERA
 // =====================
 async function loadCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices()
@@ -26,7 +26,7 @@ async function loadCameras() {
 loadCameras()
 
 // =====================
-// TOGGLE CAMERA
+// TOGGLE CAMERA ON/OFF
 // =====================
 async function toggleCamera() {
     const btn = document.getElementById('btn-cam')
@@ -46,19 +46,37 @@ async function toggleCamera() {
 
             video.srcObject = stream
             cameraOn = true
-            btn.textContent = 'Kamera OFF'
-            setStatus('Kamera aktif')
+
+            btn.textContent = '🔴 Matikan Kamera'
+            btn.style.background = '#ef4444'
+
+            setStatus('🟢 Kamera aktif')
 
         } catch (e) {
             alert('Gagal kamera: ' + e.message)
         }
     } else {
-        if (stream) stream.getTracks().forEach(t => t.stop())
-        video.srcObject = null
-        cameraOn = false
-        btn.textContent = 'Kamera ON'
-        setStatus('Kamera mati')
+        stopCamera()
     }
+}
+
+// =====================
+// STOP CAMERA (AMAN)
+// =====================
+function stopCamera() {
+    const btn = document.getElementById('btn-cam')
+
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+    }
+
+    video.srcObject = null
+    cameraOn = false
+
+    btn.textContent = '🟢 Nyalakan Kamera'
+    btn.style.background = '#22c55e'
+
+    setStatus('🔴 Kamera mati')
 }
 
 // =====================
@@ -69,7 +87,7 @@ function setStatus(text) {
 }
 
 // =====================
-// CAPTURE FRAME
+// CAPTURE
 // =====================
 function captureFrame() {
     canvas.width = video.videoWidth
@@ -143,18 +161,15 @@ async function uploadImage() {
 // REMOVE IMAGE
 // =====================
 function removeImage() {
-    const input = document.getElementById('fileInput')
-    input.value = ''
+    document.getElementById('fileInput').value = ''
 
     const img = document.getElementById('previewImg')
     img.src = ''
     img.style.display = 'none'
 
-    document.getElementById("result").innerHTML = `
-        <p>Belum ada prediksi</p>
-    `
+    document.getElementById("result").innerHTML = `<p>Belum ada prediksi</p>`
 
-    setStatus('Gambar dihapus, silakan upload lagi')
+    setStatus('Gambar dihapus')
 }
 
 // =====================
@@ -170,7 +185,7 @@ document.getElementById('fileInput').addEventListener('change', function() {
 })
 
 // =====================
-// SHOW RESULT
+// RESULT
 // =====================
 function tampilHasil(data) {
     document.getElementById("result").innerHTML = `
