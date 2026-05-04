@@ -22,66 +22,39 @@ async function loadCameras() {
         cameraSelect.appendChild(option)
     })
 }
-
 loadCameras()
 
 // =====================
-// TOGGLE CAMERA ON/OFF
+// TOGGLE CAMERA
 // =====================
 async function toggleCamera() {
     const btn = document.getElementById('btn-cam')
 
-    if (!navigator.mediaDevices) {
-        alert("Browser tidak support kamera")
-        return
-    }
-
     if (!cameraOn) {
         try {
-            const deviceId = cameraSelect.value
-
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { deviceId: deviceId }
+                video: { deviceId: cameraSelect.value }
             })
 
             video.srcObject = stream
             cameraOn = true
-
             btn.textContent = '🔴 Matikan Kamera'
             btn.style.background = '#ef4444'
-
             setStatus('🟢 Kamera aktif')
 
         } catch (e) {
-            alert('Gagal kamera: ' + e.message)
+            alert(e.message)
         }
     } else {
-        stopCamera()
+        stream.getTracks().forEach(t => t.stop())
+        video.srcObject = null
+        cameraOn = false
+        btn.textContent = '🟢 Nyalakan Kamera'
+        btn.style.background = '#22c55e'
+        setStatus('🔴 Kamera mati')
     }
 }
 
-// =====================
-// STOP CAMERA (AMAN)
-// =====================
-function stopCamera() {
-    const btn = document.getElementById('btn-cam')
-
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-    }
-
-    video.srcObject = null
-    cameraOn = false
-
-    btn.textContent = '🟢 Nyalakan Kamera'
-    btn.style.background = '#22c55e'
-
-    setStatus('🔴 Kamera mati')
-}
-
-// =====================
-// STATUS
-// =====================
 function setStatus(text) {
     document.getElementById('cam-status').innerText = text
 }
@@ -93,7 +66,6 @@ function captureFrame() {
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     ctx.drawImage(video, 0, 0)
-
     return new Promise(res => canvas.toBlob(res, 'image/jpeg'))
 }
 
@@ -101,47 +73,29 @@ function captureFrame() {
 // PREDICT CAMERA
 // =====================
 async function predict() {
-    if (!cameraOn) {
-        alert('Nyalakan kamera dulu!')
-        return
-    }
+    if (!cameraOn) return alert('Nyalakan kamera dulu!')
 
     const blob = await captureFrame()
-    const fd = new FormData()
-    fd.append('image', blob)
-
-    try {
-        const res = await fetch('/predict', {
-            method: 'POST',
-            body: fd
-        })
-
-        const data = await res.json()
-        tampilHasil(data)
-
-    } catch (e) {
-        alert('Error: ' + e.message)
-    }
+    sendToServer(blob)
 }
 
 // =====================
 // UPLOAD IMAGE
 // =====================
 async function uploadImage() {
-    const input = document.getElementById('fileInput')
-    const file = input.files[0]
+    const file = document.getElementById('fileInput').files[0]
+    if (!file) return alert('Pilih gambar dulu!')
+    sendToServer(file)
+}
 
-    if (!file) {
-        alert('Pilih gambar dulu!')
-        return
-    }
-
+// =====================
+// SEND DATA
+// =====================
+async function sendToServer(file) {
     const fd = new FormData()
     fd.append('image', file)
 
     try {
-        setStatus('Upload & analisis...')
-
         const res = await fetch('/predict', {
             method: 'POST',
             body: fd
@@ -150,10 +104,8 @@ async function uploadImage() {
         const data = await res.json()
         tampilHasil(data)
 
-        setStatus('Selesai (upload)')
-
     } catch (e) {
-        alert('Error: ' + e.message)
+        alert(e.message)
     }
 }
 
@@ -162,18 +114,13 @@ async function uploadImage() {
 // =====================
 function removeImage() {
     document.getElementById('fileInput').value = ''
-
     const img = document.getElementById('previewImg')
-    img.src = ''
     img.style.display = 'none'
-
-    document.getElementById("result").innerHTML = `<p>Belum ada prediksi</p>`
-
-    setStatus('Gambar dihapus')
+    document.getElementById('result').innerHTML = '<p>Belum ada prediksi</p>'
 }
 
 // =====================
-// PREVIEW IMAGE
+// PREVIEW
 // =====================
 document.getElementById('fileInput').addEventListener('change', function() {
     const file = this.files[0]
@@ -185,14 +132,36 @@ document.getElementById('fileInput').addEventListener('change', function() {
 })
 
 // =====================
-// RESULT
+// HASIL + PROGRESS BAR
 // =====================
 function tampilHasil(data) {
-    document.getElementById("result").innerHTML = `
-        <h3 style="color:${data.color}">
-            ${data.label_text}
-        </h3>
-        <p><b>Confidence:</b> ${data.confidence}%</p>
+
+    let persen = data.confidence || 0
+    let status = ""
+    let color = ""
+
+    if (persen <= 30) {
+        status = "Busuk"
+        color = "#ef4444"
+    } else if (persen <= 70) {
+        status = "Setengah Segar"
+        color = "#f59e0b"
+    } else {
+        status = "Segar"
+        color = "#22c55e"
+    }
+
+    document.getElementById('result').innerHTML = `
+        <h3 style="color:${color}">${status}</h3>
+
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width:${persen}%; background:${color}">
+                    ${persen}%
+                </div>
+            </div>
+        </div>
+
         <p><b>Ketahanan:</b> ${data.durasi}</p>
         <p><b>Saran:</b> ${data.saran}</p>
         <p><b>Kadar Air:</b> ${data.kadar_air}%</p>
