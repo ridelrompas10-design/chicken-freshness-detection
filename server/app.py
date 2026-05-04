@@ -6,21 +6,28 @@ import cv2
 import os
 
 # =====================
-# SETUP PATH (AMAN UNTUK DEPLOY)
+# SETUP PATH
 # =====================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = Flask(
-    __name__,
-    static_folder=os.path.join(BASE_DIR, '../static')
-)
+STATIC_DIR = os.path.join(BASE_DIR, '../static')
+MODEL_PATH = os.path.join(BASE_DIR, '../model/rf_model.pkl')
+ENCODER_PATH = os.path.join(BASE_DIR, '../model/label_encoder.pkl')
+
+app = Flask(__name__, static_folder=STATIC_DIR)
 CORS(app)
 
 # =====================
-# LOAD MODEL (FIX PATH)
+# LOAD MODEL (AMAN)
 # =====================
-model = joblib.load(os.path.join(BASE_DIR, '../model/rf_model.pkl'))
-label_encoder = joblib.load(os.path.join(BASE_DIR, '../model/label_encoder.pkl'))
+try:
+    model = joblib.load(MODEL_PATH)
+    label_encoder = joblib.load(ENCODER_PATH)
+    print("✅ Model loaded successfully")
+except Exception as e:
+    print("❌ Gagal load model:", e)
+    model = None
+    label_encoder = None
 
 # =====================
 # DATA SENSOR
@@ -37,33 +44,33 @@ def extract_features(img):
     # RGB
     for ch in cv2.split(img):
         features.extend([
-            np.mean(ch), np.std(ch),
-            np.min(ch),  np.max(ch)
+            float(np.mean(ch)), float(np.std(ch)),
+            float(np.min(ch)),  float(np.max(ch))
         ])
 
     # HSV
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     for ch in cv2.split(hsv):
         features.extend([
-            np.mean(ch), np.std(ch),
-            np.min(ch),  np.max(ch)
+            float(np.mean(ch)), float(np.std(ch)),
+            float(np.min(ch)),  float(np.max(ch))
         ])
 
     # LAB
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     for ch in cv2.split(lab):
         features.extend([
-            np.mean(ch), np.std(ch)
+            float(np.mean(ch)), float(np.std(ch))
         ])
 
-    return np.array(features).reshape(1, -1)
+    return np.array(features, dtype=np.float32).reshape(1, -1)
 
 # =====================
 # HITUNG KETAHANAN
 # =====================
 def hitung_ketahanan(label, conf):
     base = {'Segar': 72, 'Setengah': 24, 'Busuk': 0}
-    jam  = int(base.get(label, 0) * (conf / 100) * 1.1)
+    jam = int(base.get(label, 0) * (conf / 100) * 1.1)
 
     if jam >= 48:
         return f"{jam//24} hari", "Simpan di kulkas 0-4°C"
@@ -75,14 +82,19 @@ def hitung_ketahanan(label, conf):
 # =====================
 # ROUTES
 # =====================
-
 @app.route('/')
 def index():
-    return send_from_directory(app.static_folder, 'index.html')
+    return send_from_directory(STATIC_DIR, 'index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    if model is None:
+        return jsonify({'error': 'Model belum diload'}), 500
+
     try:
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image uploaded'}), 400
+
         file = request.files['image']
         img_bytes = np.frombuffer(file.read(), np.uint8)
         img = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
@@ -117,11 +129,10 @@ def predict():
 @app.route('/sensor', methods=['POST'])
 def sensor():
     try:
-        body = request.json
+        body = request.get_json()
         data_sensor['kadar_air'] = body.get('kadar_air', 0)
 
         print(f"Sensor update: kadar_air = {data_sensor['kadar_air']}")
-
         return jsonify({'status': 'ok'})
 
     except Exception as e:
@@ -139,4 +150,4 @@ def status():
 # =====================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port)
