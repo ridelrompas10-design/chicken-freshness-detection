@@ -23,8 +23,10 @@ async function loadCameras() {
     })
 }
 
+loadCameras()
+
 // =====================
-// CAMERA TOGGLE
+// TOGGLE CAMERA
 // =====================
 async function toggleCamera() {
     const btn = document.getElementById('btn-cam')
@@ -78,7 +80,7 @@ function captureFrame() {
 }
 
 // =====================
-// PREDICT FROM CAMERA
+// PREDICT CAMERA
 // =====================
 async function predict() {
     if (!cameraOn) {
@@ -138,6 +140,24 @@ async function uploadImage() {
 }
 
 // =====================
+// REMOVE IMAGE
+// =====================
+function removeImage() {
+    const input = document.getElementById('fileInput')
+    input.value = ''
+
+    const img = document.getElementById('previewImg')
+    img.src = ''
+    img.style.display = 'none'
+
+    document.getElementById("result").innerHTML = `
+        <p>Belum ada prediksi</p>
+    `
+
+    setStatus('Gambar dihapus, silakan upload lagi')
+}
+
+// =====================
 // PREVIEW IMAGE
 // =====================
 document.getElementById('fileInput').addEventListener('change', function() {
@@ -163,6 +183,3 @@ function tampilHasil(data) {
         <p><b>Kadar Air:</b> ${data.kadar_air}%</p>
     `
 }
-
-// load camera saat awal
-loadCameras()

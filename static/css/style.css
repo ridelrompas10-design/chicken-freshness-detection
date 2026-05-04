@@ -70,3 +70,12 @@ button:hover {
     display: none;
     border-radius: 8px;
 }
+
+.btn-group {
+    margin-top: 8px;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
