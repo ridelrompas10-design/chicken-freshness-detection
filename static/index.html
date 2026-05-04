@@ -2,35 +2,47 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deteksi Kesegaran Daging Ayam</title>
-
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
 <body>
 
-  <h1>Deteksi Kesegaran Daging Ayam</h1>
+<h1>Deteksi Kesegaran Daging Ayam</h1>
 
-  <!-- VIDEO CAMERA -->
-  <video id="video" autoplay playsinline width="300"></video>
-  <canvas id="canvas" style="display:none;"></canvas>
+<div class="container">
 
-  <!-- BUTTON -->
-  <div>
-    <button onclick="toggleCamera()" id="btn-cam">Kamera ON</button>
-    <button onclick="detectMeat()">Deteksi</button>
-    <button onclick="predict()">Prediksi</button>
+  <!-- KIRI: KAMERA -->
+  <div class="left-panel">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="camera-select">
+      <label>Pilih Kamera:</label>
+      <select id="cameraSelect"></select>
+    </div>
   </div>
 
-  <!-- STATUS -->
-  <p id="cam-status">Kamera belum aktif</p>
+  <!-- KANAN: HASIL -->
+  <div class="right-panel">
+    <h2>Status</h2>
+    <p id="cam-status">Kamera belum aktif</p>
 
-  <!-- HASIL -->
-  <div id="result"></div>
+    <div id="result">
+      <p>Belum ada prediksi</p>
+    </div>
+  </div>
 
-  <!-- JS -->
-  <script src="/static/js/script.js"></script>
+</div>
+
+<!-- BAWAH: CONTROL -->
+<div class="controls">
+  <button onclick="toggleCamera()" id="btn-cam">Kamera ON</button>
+  <button onclick="detectMeat()">Deteksi</button>
+  <button onclick="predict()">Prediksi</button>
+</div>
+
+<script src="/static/js/script.js"></script>
 
 </body>
 </html>
