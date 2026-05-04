@@ -6,7 +6,9 @@ const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 const cameraSelect = document.getElementById('cameraSelect')
 
-// ✅ load daftar kamera
+// =====================
+// LOAD CAMERA LIST
+// =====================
 async function loadCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices()
     const cams = devices.filter(d => d.kind === 'videoinput')
@@ -21,8 +23,9 @@ async function loadCameras() {
     })
 }
 
-loadCameras()
-
+// =====================
+// CAMERA TOGGLE
+// =====================
 async function toggleCamera() {
     const btn = document.getElementById('btn-cam')
 
@@ -42,7 +45,7 @@ async function toggleCamera() {
             video.srcObject = stream
             cameraOn = true
             btn.textContent = 'Kamera OFF'
-            setStatus('Kamera aktif', 'ok')
+            setStatus('Kamera aktif')
 
         } catch (e) {
             alert('Gagal kamera: ' + e.message)
@@ -52,14 +55,20 @@ async function toggleCamera() {
         video.srcObject = null
         cameraOn = false
         btn.textContent = 'Kamera ON'
-        setStatus('Kamera mati', 'off')
+        setStatus('Kamera mati')
     }
 }
 
+// =====================
+// STATUS
+// =====================
 function setStatus(text) {
     document.getElementById('cam-status').innerText = text
 }
 
+// =====================
+// CAPTURE FRAME
+// =====================
 function captureFrame() {
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
@@ -68,6 +77,9 @@ function captureFrame() {
     return new Promise(res => canvas.toBlob(res, 'image/jpeg'))
 }
 
+// =====================
+// PREDICT FROM CAMERA
+// =====================
 async function predict() {
     if (!cameraOn) {
         alert('Nyalakan kamera dulu!')
@@ -85,7 +97,6 @@ async function predict() {
         })
 
         const data = await res.json()
-
         tampilHasil(data)
 
     } catch (e) {
@@ -93,14 +104,65 @@ async function predict() {
     }
 }
 
+// =====================
+// UPLOAD IMAGE
+// =====================
+async function uploadImage() {
+    const input = document.getElementById('fileInput')
+    const file = input.files[0]
+
+    if (!file) {
+        alert('Pilih gambar dulu!')
+        return
+    }
+
+    const fd = new FormData()
+    fd.append('image', file)
+
+    try {
+        setStatus('Upload & analisis...')
+
+        const res = await fetch('/predict', {
+            method: 'POST',
+            body: fd
+        })
+
+        const data = await res.json()
+        tampilHasil(data)
+
+        setStatus('Selesai (upload)')
+
+    } catch (e) {
+        alert('Error: ' + e.message)
+    }
+}
+
+// =====================
+// PREVIEW IMAGE
+// =====================
+document.getElementById('fileInput').addEventListener('change', function() {
+    const file = this.files[0]
+    if (!file) return
+
+    const img = document.getElementById('previewImg')
+    img.src = URL.createObjectURL(file)
+    img.style.display = 'block'
+})
+
+// =====================
+// SHOW RESULT
+// =====================
 function tampilHasil(data) {
     document.getElementById("result").innerHTML = `
         <h3 style="color:${data.color}">
             ${data.label_text}
         </h3>
-        <p>Confidence: ${data.confidence}%</p>
-        <p>Ketahanan: ${data.durasi}</p>
-        <p>Saran: ${data.saran}</p>
-        <p>Kadar Air: ${data.kadar_air}%</p>
+        <p><b>Confidence:</b> ${data.confidence}%</p>
+        <p><b>Ketahanan:</b> ${data.durasi}</p>
+        <p><b>Saran:</b> ${data.saran}</p>
+        <p><b>Kadar Air:</b> ${data.kadar_air}%</p>
     `
 }
+
+// load camera saat awal
+loadCameras()

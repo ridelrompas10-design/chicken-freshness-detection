@@ -32,7 +32,7 @@ canvas {
 }
 
 .right-panel {
-    width: 300px;
+    width: 320px;
     text-align: left;
 }
 
@@ -55,4 +55,18 @@ button:hover {
 #btn-cam {
     background: green;
     color: white;
+}
+
+.upload-box {
+    margin-top: 10px;
+    background: #334155;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+#previewImg {
+    width: 100%;
+    margin-top: 10px;
+    display: none;
+    border-radius: 8px;
 }

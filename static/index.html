@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Deteksi Kesegaran Daging Ayam</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=2">
 </head>
 
 <body>
@@ -12,7 +12,7 @@
 
 <div class="container">
 
-  <!-- KIRI: KAMERA -->
+  <!-- KIRI -->
   <div class="left-panel">
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
@@ -21,9 +21,18 @@
       <label>Pilih Kamera:</label>
       <select id="cameraSelect"></select>
     </div>
+
+    <!-- UPLOAD -->
+    <div class="upload-box">
+      <label>Upload Gambar:</label><br>
+      <input type="file" id="fileInput" accept="image/*">
+      <button onclick="uploadImage()">Upload & Prediksi</button>
+
+      <img id="previewImg">
+    </div>
   </div>
 
-  <!-- KANAN: HASIL -->
+  <!-- KANAN -->
   <div class="right-panel">
     <h2>Status</h2>
     <p id="cam-status">Kamera belum aktif</p>
@@ -35,14 +44,13 @@
 
 </div>
 
-<!-- BAWAH: CONTROL -->
+<!-- CONTROL -->
 <div class="controls">
   <button onclick="toggleCamera()" id="btn-cam">Kamera ON</button>
-  <button onclick="detectMeat()">Deteksi</button>
-  <button onclick="predict()">Prediksi</button>
+  <button onclick="predict()">Prediksi Kamera</button>
 </div>
 
-<script src="/static/js/script.js"></script>
+<script src="/static/js/script.js?v=2"></script>
 
 </body>
 </html>
