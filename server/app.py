@@ -288,5 +288,7 @@ def status():
 # =====================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
-    print(f"Server jalan di http://localhost:{port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # FIX: debug=False di production agar tidak restart terus
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    print(f"Server jalan di http://localhost:{port} (debug={debug})")
+    app.run(host='0.0.0.0', port=port, debug=debug)
