@@ -4,127 +4,102 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Deteksi Kesegaran Daging Ayam</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-<div class="title">
-  <span>SISTEM DETEKSI KESEGARAN DAGING AYAM</span>
-  <span id="clock" class="muted">--:--:--</span>
+<div class="topbar">
+  <div class="title">Deteksi Kesegaran Daging Ayam</div>
+  <div id="clock" class="clock">--:--:--</div>
 </div>
 
-<div class="grid-top">
+<div class="grid2">
 
-  <!-- Panel Kamera -->
-  <div class="panel">
-    <div class="ph">KAMERA</div>
-    <div class="cam-wrap">
+  <!-- Kamera -->
+  <div class="card">
+    <div class="card-title">Kamera</div>
+
+    <div class="cam-box">
       <video id="video" autoplay playsinline></video>
-      <span id="cam-badge" class="cam-badge badge-off">Kamera belum aktif</span>
+      <span id="badge" class="badge off">Kamera belum aktif</span>
     </div>
+
     <div class="btn-row">
-      <button id="btn-cam"    onclick="toggleCamera()">Kamera ON</button>
-      <button id="btn-detect" onclick="detectOnly()">Deteksi</button>
-      <button id="btn-pred"   onclick="predict()">Prediksi</button>
+      <button id="btn-cam" class="btn primary" onclick="toggleCamera()">Kamera ON</button>
+      <button id="btn-pred" class="btn secondary" onclick="predict()">Prediksi</button>
     </div>
   </div>
 
-  <!-- Panel Sensor -->
-  <div class="panel">
-    <div class="ph">
-      SENSOR KADAR AIR
-      <span id="sensor-dot" class="status-dot dot-off"></span>
-      <span id="sensor-status-text" class="muted" style="font-size:10px">
-        Menghubungkan...
-      </span>
+  <!-- Sensor -->
+  <div class="card">
+    <div class="card-title">
+      Sensor Kadar Air
+      <span id="sdot" class="dot off"></span>
+      <span id="stxt" class="dim">Menghubungkan...</span>
     </div>
-    <div class="sensor-item">
-      <div class="sensor-name">Sensor 1</div>
-      <div class="sensor-val green" id="s1-val">- %</div>
-      <div class="sensor-bar">
-        <div class="sensor-fill" id="s1-bar" style="width:0%"></div>
-      </div>
+
+    <div class="sitem"><span class="dim">Sensor 1</span><span id="s1" class="bold">- %</span></div>
+    <div class="sitem"><span class="dim">Sensor 2</span><span id="s2" class="bold">- %</span></div>
+    <div class="sitem"><span class="dim">Sensor 3</span><span id="s3" class="bold">- %</span></div>
+
+    <div class="divider"></div>
+
+    <div class="sitem">
+      <span class="dim">Rata-rata</span>
+      <span id="avg" class="bold big">- %</span>
     </div>
-    <div class="sensor-item">
-      <div class="sensor-name">Sensor 2</div>
-      <div class="sensor-val green" id="s2-val">- %</div>
-      <div class="sensor-bar">
-        <div class="sensor-fill" id="s2-bar" style="width:0%"></div>
-      </div>
-    </div>
-    <div class="sensor-item">
-      <div class="sensor-name">Sensor 3</div>
-      <div class="sensor-val green" id="s3-val">- %</div>
-      <div class="sensor-bar">
-        <div class="sensor-fill" id="s3-bar" style="width:0%"></div>
-      </div>
-    </div>
-    <div class="rata-wrap">
-      <div class="sensor-name">Rata-rata</div>
-      <div class="sensor-val green" id="avg-val" style="font-size:18px">- %</div>
-    </div>
-    <div class="warning-box" id="sensor-warning"></div>
+
+    <div id="swarn" class="warn" style="display:none"></div>
   </div>
 
 </div>
 
-<div class="grid-bot">
+<div class="grid3">
 
-  <!-- Panel Hasil Prediksi -->
-  <div class="panel">
-    <div class="ph">HASIL PREDIKSI AI</div>
-    <div id="hasil-label" class="muted result-label">-</div>
-    <div id="hasil-conf" class="result-conf"></div>
-    <div class="bar-section">
-      <div class="srow">
-        <span class="sl">Segar</span>
-        <div class="bwrap">
-          <div class="bfill green" id="bar-segar" style="width:0%"></div>
-        </div>
-        <span class="sv green" id="val-segar">- %</span>
-      </div>
-      <div class="srow">
-        <span class="sl">Setengah</span>
-        <div class="bwrap">
-          <div class="bfill orange" id="bar-setengah" style="width:0%"></div>
-        </div>
-        <span class="sv orange" id="val-setengah">- %</span>
-      </div>
-      <div class="srow">
-        <span class="sl">Busuk</span>
-        <div class="bwrap">
-          <div class="bfill red" id="bar-busuk" style="width:0%"></div>
-        </div>
-        <span class="sv red" id="val-busuk">- %</span>
-      </div>
-    </div>
-    <div id="hasil-sumber" class="sumber-text"></div>
+  <!-- Hasil Prediksi -->
+  <div class="card highlight-card">
+    <div class="card-title">Hasil Prediksi</div>
+
+    <div id="hlabel" class="result-label">-</div>
+    <div id="hconf"  class="small dim"></div>
+
+    <div class="divider"></div>
+
+    <div class="sitem"><span class="dim">Segar</span><span id="vsegar" class="green">- %</span></div>
+    <div class="sitem"><span class="dim">Setengah</span><span id="vsetengah" class="orange">- %</span></div>
+    <div class="sitem"><span class="dim">Busuk</span><span id="vbusuk" class="red">- %</span></div>
+
+    <div id="hsumber" class="small dim mt"></div>
   </div>
 
-  <!-- Panel Ketahanan -->
-  <div class="panel">
-    <div class="ph">PREDIKSI KETAHANAN</div>
-    <div id="durasi-val" class="durasi-num">-</div>
-    <div id="durasi-saran" class="durasi-saran"></div>
-    <div id="durasi-est"   class="durasi-est"></div>
+  <!-- Ketahanan -->
+  <div class="card">
+    <div class="card-title">Ketahanan Daging</div>
+
+    <div id="durasi" class="durasi">-</div>
+    <div id="saran"  class="small dim"></div>
+    <div id="est"    class="small dim"></div>
   </div>
 
-  <!-- Panel Kondisi Sensor -->
-  <div class="panel">
-    <div class="ph">KONDISI SENSOR</div>
-    <div id="kondisi-sensor" class="kondisi-text muted">Menunggu data...</div>
-    <div class="info-divider">
-      <div class="info-label">Update terakhir</div>
-      <div id="waktu-sensor" class="info-val">-</div>
-    </div>
-    <div class="info-divider">
-      <div class="info-label">Sumber prediksi</div>
-      <div id="sumber-info" class="info-val">-</div>
-    </div>
+  <!-- Kondisi -->
+  <div class="card">
+    <div class="card-title">Kondisi Sensor</div>
+
+    <div id="kondisi" class="small dim">Menunggu data...</div>
+
+    <div class="divider"></div>
+
+    <div class="dim small">Update terakhir</div>
+    <div id="waktu" class="small"></div>
+
+    <div class="divider"></div>
+
+    <div class="dim small">Sumber</div>
+    <div id="sumber" class="small"></div>
   </div>
 
 </div>
 
-<script src="script.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

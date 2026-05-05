@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import numpy as np
 import joblib
@@ -10,13 +10,23 @@ import serial.tools.list_ports
 import json
 from datetime import datetime, timedelta
 
-app = Flask(__name__, static_folder='../static')
+# =====================
+# PATH SETUP
+# =====================
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ✅ FIX 1: static_folder dan template_folder pakai path absolut
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, 'static'),
+    static_url_path='/static',
+    template_folder=os.path.join(BASE_DIR, 'static')
+)
 CORS(app)
 
 # =====================
 # LOAD MODEL
 # =====================
-BASE_DIR      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 model         = joblib.load(os.path.join(BASE_DIR, 'model', 'rf_model.pkl'))
 label_encoder = joblib.load(os.path.join(BASE_DIR, 'model', 'label_encoder.pkl'))
 
@@ -115,7 +125,6 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
             'level_sensor': kondisi['level']
         }
 
-    # Label dari sensor
     if   kadar_air >= 75: label_sensor = 'Segar'
     elif kadar_air >= 60: label_sensor = 'Setengah'
     else:                 label_sensor = 'Busuk'
@@ -174,18 +183,13 @@ def thread_sensor():
                             try:
                                 data = json.loads(baris)
                                 with sensor_lock:
-                                    data_sensor['sensor_1'] = round(
-                                        data.get('s1', 0), 1)
-                                    data_sensor['sensor_2'] = round(
-                                        data.get('s2', 0), 1)
-                                    data_sensor['sensor_3'] = round(
-                                        data.get('s3', 0), 1)
-                                    data_sensor['rata_rata'] = round(
-                                        data.get('avg', 0), 1)
+                                    data_sensor['sensor_1'] = round(data.get('s1', 0), 1)
+                                    data_sensor['sensor_2'] = round(data.get('s2', 0), 1)
+                                    data_sensor['sensor_3'] = round(data.get('s3', 0), 1)
+                                    data_sensor['rata_rata'] = round(data.get('avg', 0), 1)
                                     data_sensor['kondisi']  = cek_kondisi_sensor(
                                         data.get('avg', 0))['pesan']
-                                    data_sensor['waktu']    = datetime.now(
-                                        ).strftime('%H:%M:%S')
+                                    data_sensor['waktu']    = datetime.now().strftime('%H:%M:%S')
                                     data_sensor['valid']    = True
                                 print(f"[Sensor] avg={data.get('avg',0):.1f}%")
                             except json.JSONDecodeError:
@@ -212,15 +216,15 @@ t.start()
 # ENDPOINT
 # =====================
 
+# ✅ FIX 2: Pakai render_template agar Jinja2 {{ url_for() }} diproses
 @app.route('/')
 def index():
-    return send_from_directory(
-        os.path.join(BASE_DIR, 'static'), 'index.html')
+    return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        file      = request.files.get('image')
+        file = request.files.get('image')
         if not file:
             return jsonify({'error': 'Tidak ada gambar'}), 400
 
@@ -230,14 +234,12 @@ def predict():
         if img is None:
             return jsonify({'error': 'Gambar tidak valid'}), 400
 
-        # Prediksi kamera
         features     = extract_features(img)
         pred         = model.predict(features)
         proba        = model.predict_proba(features)[0]
         label_kamera = label_encoder.inverse_transform(pred)[0]
         conf_kamera  = float(np.max(proba) * 100)
 
-        # Ambil data sensor
         with sensor_lock:
             kadar_air    = data_sensor['rata_rata']
             s1           = data_sensor['sensor_1']
@@ -246,19 +248,16 @@ def predict():
             sensor_ok    = data_sensor['valid']
             waktu_sensor = data_sensor['waktu']
 
-        # Gabung hasil
         hasil         = gabung_hasil(label_kamera, conf_kamera, kadar_air)
         durasi, saran = hitung_ketahanan(hasil['label'], hasil['confidence'])
 
-        # Estimasi tanggal
         jam_est = 0
         if 'hari' in durasi:
             jam_est = int(durasi.split()[0]) * 24
         elif 'jam' in durasi:
             jam_est = int(durasi.split()[0])
 
-        estimasi = (datetime.now() + timedelta(
-            hours=jam_est)).strftime('%d %b %Y')
+        estimasi = (datetime.now() + timedelta(hours=jam_est)).strftime('%d %b %Y')
 
         return jsonify({
             'label'      : hasil['label'],
@@ -293,10 +292,6 @@ def sensor_status():
 
 @app.route('/sensor', methods=['POST'])
 def sensor_post():
-    """
-    Endpoint fallback jika sensor dikirim manual
-    dari baca_sensor.py
-    """
     try:
         body      = request.json
         kadar_air = float(body.get('kadar_air', 0))
