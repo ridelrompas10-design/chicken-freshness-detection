@@ -19,14 +19,49 @@
   <div class="card">
     <div class="card-title">Kamera</div>
 
-    <div class="cam-box">
-      <video id="video" autoplay playsinline></video>
-      <span id="badge" class="badge off">Kamera belum aktif</span>
+    <!-- Tab Switcher -->
+    <div class="tab-row">
+      <button id="tab-cam" class="tab active" onclick="switchTab('cam')">📷 Kamera</button>
+      <button id="tab-upload" class="tab" onclick="switchTab('upload')">📁 Upload Foto</button>
     </div>
 
-    <div class="btn-row">
-      <button id="btn-cam" class="btn primary" onclick="toggleCamera()">Kamera ON</button>
-      <button id="btn-pred" class="btn secondary" onclick="predict()">Prediksi</button>
+    <!-- Panel Kamera -->
+    <div id="panel-cam">
+      <div class="cam-box">
+        <video id="video" autoplay playsinline></video>
+        <span id="badge" class="badge off">Kamera belum aktif</span>
+      </div>
+
+      <!-- Pilihan Kamera -->
+      <div id="cam-select-row" class="cam-select-row" style="display:none">
+        <label class="dim small">Pilih Kamera:</label>
+        <select id="cam-select" onchange="gantiKamera()"></select>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-cam" class="btn primary" onclick="toggleCamera()">Kamera ON</button>
+        <button id="btn-pred" class="btn secondary" onclick="predict()">Prediksi</button>
+      </div>
+    </div>
+
+    <!-- Panel Upload -->
+    <div id="panel-upload" style="display:none">
+      <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()"
+           ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <div id="upload-placeholder">
+          <div class="upload-icon">📂</div>
+          <div class="dim small">Klik atau seret foto daging ke sini</div>
+          <div class="dim small" style="font-size:11px;margin-top:4px">JPG, PNG, JPEG</div>
+        </div>
+        <img id="preview-img" style="display:none" alt="preview">
+      </div>
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(event)">
+
+      <div class="btn-row">
+        <button class="btn danger" onclick="hapusFoto()" id="btn-hapus" style="display:none">🗑 Hapus Foto</button>
+        <button class="btn secondary" onclick="predictUpload()" id="btn-pred-upload">Prediksi Foto</button>
+      </div>
+      <div id="upload-badge" class="badge off" style="margin-top:8px;display:none"></div>
     </div>
   </div>
 
@@ -66,7 +101,7 @@
     <div class="divider"></div>
 
     <div class="sitem"><span class="dim">Segar</span><span id="vsegar" class="green">- %</span></div>
-    <div class="sitem"><span class="dim">Setengah</span><span id="vsetengah" class="orange">- %</span></div>
+    <div class="sitem"><span class="dim">Setengah Segar</span><span id="vsetengah" class="orange">- %</span></div>
     <div class="sitem"><span class="dim">Busuk</span><span id="vbusuk" class="red">- %</span></div>
 
     <div id="hsumber" class="small dim mt"></div>
