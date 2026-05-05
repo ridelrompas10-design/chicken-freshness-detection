@@ -1,57 +1,130 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Deteksi Kesegaran Daging Ayam</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=5">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deteksi Kesegaran Daging Ayam</title>
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<h1>Deteksi Kesegaran Daging Ayam</h1>
+<div class="title">
+  <span>SISTEM DETEKSI KESEGARAN DAGING AYAM</span>
+  <span id="clock" class="muted">--:--:--</span>
+</div>
 
-<div class="container">
+<div class="grid-top">
 
-  <!-- KIRI -->
-  <div class="left-panel">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
-
-    <div class="camera-select">
-      <label>Pilih Kamera:</label>
-      <select id="cameraSelect"></select>
+  <!-- Panel Kamera -->
+  <div class="panel">
+    <div class="ph">KAMERA</div>
+    <div class="cam-wrap">
+      <video id="video" autoplay playsinline></video>
+      <span id="cam-badge" class="cam-badge badge-off">Kamera belum aktif</span>
     </div>
+    <div class="btn-row">
+      <button id="btn-cam"    onclick="toggleCamera()">Kamera ON</button>
+      <button id="btn-detect" onclick="detectOnly()">Deteksi</button>
+      <button id="btn-pred"   onclick="predict()">Prediksi</button>
+    </div>
+  </div>
 
-    <div class="upload-box">
-      <input type="file" id="fileInput" accept="image/*">
-
-      <div class="btn-group">
-        <button onclick="uploadImage()">Upload & Prediksi</button>
-        <button onclick="removeImage()" class="btn-danger">Hapus Foto</button>
+  <!-- Panel Sensor -->
+  <div class="panel">
+    <div class="ph">
+      SENSOR KADAR AIR
+      <span id="sensor-dot" class="status-dot dot-off"></span>
+      <span id="sensor-status-text" class="muted" style="font-size:10px">
+        Menghubungkan...
+      </span>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-name">Sensor 1</div>
+      <div class="sensor-val green" id="s1-val">- %</div>
+      <div class="sensor-bar">
+        <div class="sensor-fill" id="s1-bar" style="width:0%"></div>
       </div>
-
-      <img id="previewImg">
     </div>
+    <div class="sensor-item">
+      <div class="sensor-name">Sensor 2</div>
+      <div class="sensor-val green" id="s2-val">- %</div>
+      <div class="sensor-bar">
+        <div class="sensor-fill" id="s2-bar" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-name">Sensor 3</div>
+      <div class="sensor-val green" id="s3-val">- %</div>
+      <div class="sensor-bar">
+        <div class="sensor-fill" id="s3-bar" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="rata-wrap">
+      <div class="sensor-name">Rata-rata</div>
+      <div class="sensor-val green" id="avg-val" style="font-size:18px">- %</div>
+    </div>
+    <div class="warning-box" id="sensor-warning"></div>
   </div>
 
-  <!-- KANAN -->
-  <div class="right-panel">
-    <h2>Status</h2>
-    <p id="cam-status">🔴 Kamera mati</p>
+</div>
 
-    <div id="result">
-      <p>Belum ada prediksi</p>
+<div class="grid-bot">
+
+  <!-- Panel Hasil Prediksi -->
+  <div class="panel">
+    <div class="ph">HASIL PREDIKSI AI</div>
+    <div id="hasil-label" class="muted result-label">-</div>
+    <div id="hasil-conf" class="result-conf"></div>
+    <div class="bar-section">
+      <div class="srow">
+        <span class="sl">Segar</span>
+        <div class="bwrap">
+          <div class="bfill green" id="bar-segar" style="width:0%"></div>
+        </div>
+        <span class="sv green" id="val-segar">- %</span>
+      </div>
+      <div class="srow">
+        <span class="sl">Setengah</span>
+        <div class="bwrap">
+          <div class="bfill orange" id="bar-setengah" style="width:0%"></div>
+        </div>
+        <span class="sv orange" id="val-setengah">- %</span>
+      </div>
+      <div class="srow">
+        <span class="sl">Busuk</span>
+        <div class="bwrap">
+          <div class="bfill red" id="bar-busuk" style="width:0%"></div>
+        </div>
+        <span class="sv red" id="val-busuk">- %</span>
+      </div>
+    </div>
+    <div id="hasil-sumber" class="sumber-text"></div>
+  </div>
+
+  <!-- Panel Ketahanan -->
+  <div class="panel">
+    <div class="ph">PREDIKSI KETAHANAN</div>
+    <div id="durasi-val" class="durasi-num">-</div>
+    <div id="durasi-saran" class="durasi-saran"></div>
+    <div id="durasi-est"   class="durasi-est"></div>
+  </div>
+
+  <!-- Panel Kondisi Sensor -->
+  <div class="panel">
+    <div class="ph">KONDISI SENSOR</div>
+    <div id="kondisi-sensor" class="kondisi-text muted">Menunggu data...</div>
+    <div class="info-divider">
+      <div class="info-label">Update terakhir</div>
+      <div id="waktu-sensor" class="info-val">-</div>
+    </div>
+    <div class="info-divider">
+      <div class="info-label">Sumber prediksi</div>
+      <div id="sumber-info" class="info-val">-</div>
     </div>
   </div>
 
 </div>
 
-<div class="controls">
-  <button onclick="toggleCamera()" id="btn-cam">🟢 Nyalakan Kamera</button>
-  <button onclick="predict()">Prediksi Kamera</button>
-</div>
-
-<script src="/static/js/script.js?v=5"></script>
-
+<script src="script.js"></script>
 </body>
 </html>
