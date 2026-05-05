@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 # =====================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# ✅ FIX 1: static_folder dan template_folder pakai path absolut
 app = Flask(
     __name__,
     static_folder=os.path.join(BASE_DIR, 'static'),
@@ -45,63 +44,59 @@ data_sensor = {
 sensor_lock = threading.Lock()
 
 # =====================
-# EKSTRAK FITUR GAMBAR
+# EKSTRAK FITUR GAMBAR (30 fitur)
 # =====================
 def extract_features(img):
     img = cv2.resize(img, (64, 64))
     features = []
+
+    # BGR: 3 channel x 4 stats = 12
     for ch in cv2.split(img):
-        features.extend([np.mean(ch), np.std(ch),
-                         np.min(ch),  np.max(ch)])
+        features.extend([np.mean(ch), np.std(ch), np.min(ch), np.max(ch)])
+
+    # HSV: 3 channel x 4 stats = 12
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     for ch in cv2.split(hsv):
-        features.extend([np.mean(ch), np.std(ch),
-                         np.min(ch),  np.max(ch)])
+        features.extend([np.mean(ch), np.std(ch), np.min(ch), np.max(ch)])
+
+    # LAB: 3 channel x 2 stats = 6
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     for ch in cv2.split(lab):
         features.extend([np.mean(ch), np.std(ch)])
-    return np.array(features).reshape(1, -1)
+
+    # Total: 30 fitur (belum termasuk moisture)
+    return np.array(features, dtype=np.float32)
 
 # =====================
 # CEK KONDISI SENSOR
 # =====================
 def cek_kondisi_sensor(kadar_air):
     if kadar_air > 92:
-        return {
-            'valid' : False,
-            'pesan' : 'Daging kemungkinan masih beku. Tunggu 5-10 menit.',
-            'level' : 'warning'
-        }
+        return {'valid': False, 'pesan': 'Daging kemungkinan masih beku. Tunggu 5-10 menit.', 'level': 'warning'}
     elif kadar_air < 5:
-        return {
-            'valid' : False,
-            'pesan' : 'Sensor tidak terbaca. Pastikan menempel pada daging.',
-            'level' : 'error'
-        }
+        return {'valid': False, 'pesan': 'Sensor tidak terbaca. Pastikan menempel pada daging.', 'level': 'error'}
     elif kadar_air >= 75:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air normal - daging segar',
-            'level' : 'ok'
-        }
+        return {'valid': True,  'pesan': 'Kadar air normal - daging segar',          'level': 'ok'}
     elif kadar_air >= 60:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air sedang - daging setengah segar',
-            'level' : 'ok'
-        }
+        return {'valid': True,  'pesan': 'Kadar air sedang - daging setengah segar', 'level': 'ok'}
     else:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air rendah - daging busuk',
-            'level' : 'ok'
-        }
+        return {'valid': True,  'pesan': 'Kadar air rendah - daging busuk',          'level': 'ok'}
+
+# =====================
+# LABEL DISPLAY - mapping label training ke tampilan UI
+# =====================
+LABEL_DISPLAY = {
+    'segar'      : 'Segar',
+    'cukup_segar': 'Setengah Segar',
+    'busuk'      : 'Busuk'
+}
 
 # =====================
 # HITUNG KETAHANAN
+# FIX: label disesuaikan dengan label training
 # =====================
 def hitung_ketahanan(label, conf):
-    base = {'Segar': 72, 'Setengah': 24, 'Busuk': 0}
+    base = {'segar': 72, 'cukup_segar': 24, 'busuk': 0}
     jam  = int(base.get(label, 0) * (conf / 100) * 1.1)
     if jam >= 48:
         return f"{jam//24} hari", "Simpan di kulkas 0-4°C"
@@ -112,6 +107,7 @@ def hitung_ketahanan(label, conf):
 
 # =====================
 # GABUNG KAMERA + SENSOR
+# FIX: label sensor disesuaikan dengan label training
 # =====================
 def gabung_hasil(label_kamera, conf_kamera, kadar_air):
     kondisi = cek_kondisi_sensor(kadar_air)
@@ -125,9 +121,10 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
             'level_sensor': kondisi['level']
         }
 
-    if   kadar_air >= 75: label_sensor = 'Segar'
-    elif kadar_air >= 60: label_sensor = 'Setengah'
-    else:                 label_sensor = 'Busuk'
+    # FIX: pakai label yang sama dengan training
+    if   kadar_air >= 75: label_sensor = 'segar'
+    elif kadar_air >= 60: label_sensor = 'cukup_segar'
+    else:                 label_sensor = 'busuk'
 
     if label_kamera == label_sensor:
         label_final = label_kamera
@@ -136,7 +133,7 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
     else:
         label_final = label_kamera
         conf_final  = conf_kamera * 0.85
-        sumber      = f'Kamera utama (sensor: {label_sensor})'
+        sumber      = f'Kamera utama (sensor: {LABEL_DISPLAY.get(label_sensor, label_sensor)})'
 
     return {
         'label'       : label_final,
@@ -152,19 +149,16 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
 def cari_port_esp32():
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if any(x in port.description for x in
-               ['CP210', 'CH340', 'USB Serial', 'UART']):
+        if any(x in port.description for x in ['CP210', 'CH340', 'USB Serial', 'UART']):
             return port.device
     return None
 
 def thread_sensor():
     print("Mencari ESP32...")
     port = cari_port_esp32()
-
     if port is None:
         print("ESP32 tidak ditemukan. Mode tanpa sensor.")
         return
-
     print(f"ESP32 ditemukan di: {port}")
 
     while True:
@@ -172,7 +166,6 @@ def thread_sensor():
             ser    = serial.Serial(port, 115200, timeout=2)
             buffer = ""
             print(f"Sensor terhubung di {port}")
-
             while True:
                 if ser.in_waiting > 0:
                     karakter = ser.read().decode('utf-8', errors='ignore')
@@ -187,8 +180,7 @@ def thread_sensor():
                                     data_sensor['sensor_2'] = round(data.get('s2', 0), 1)
                                     data_sensor['sensor_3'] = round(data.get('s3', 0), 1)
                                     data_sensor['rata_rata'] = round(data.get('avg', 0), 1)
-                                    data_sensor['kondisi']  = cek_kondisi_sensor(
-                                        data.get('avg', 0))['pesan']
+                                    data_sensor['kondisi']  = cek_kondisi_sensor(data.get('avg', 0))['pesan']
                                     data_sensor['waktu']    = datetime.now().strftime('%H:%M:%S')
                                     data_sensor['valid']    = True
                                 print(f"[Sensor] avg={data.get('avg',0):.1f}%")
@@ -196,7 +188,6 @@ def thread_sensor():
                                 pass
                     else:
                         buffer += karakter
-
         except serial.SerialException as e:
             print(f"Koneksi sensor terputus: {e}")
             print("Mencoba reconnect dalam 5 detik...")
@@ -208,7 +199,6 @@ def thread_sensor():
             print(f"Error sensor: {e}")
             break
 
-# Jalankan thread sensor
 t = threading.Thread(target=thread_sensor, daemon=True)
 t.start()
 
@@ -216,7 +206,6 @@ t.start()
 # ENDPOINT
 # =====================
 
-# ✅ FIX 2: Pakai render_template agar Jinja2 {{ url_for() }} diproses
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -230,16 +219,10 @@ def predict():
 
         img_bytes = np.frombuffer(file.read(), np.uint8)
         img       = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
-
         if img is None:
             return jsonify({'error': 'Gambar tidak valid'}), 400
 
-        features     = extract_features(img)
-        pred         = model.predict(features)
-        proba        = model.predict_proba(features)[0]
-        label_kamera = label_encoder.inverse_transform(pred)[0]
-        conf_kamera  = float(np.max(proba) * 100)
-
+        # Ambil data sensor
         with sensor_lock:
             kadar_air    = data_sensor['rata_rata']
             s1           = data_sensor['sensor_1']
@@ -248,26 +231,44 @@ def predict():
             sensor_ok    = data_sensor['valid']
             waktu_sensor = data_sensor['waktu']
 
+        # =====================================================
+        # FIX UTAMA: 30 fitur gambar + 1 moisture = 31 fitur
+        # Sesuai dengan cara training di train_model.py
+        # =====================================================
+        img_features = extract_features(img)                            # shape: (30,)
+        moisture_val = kadar_air if sensor_ok else 70.0                 # fallback jika sensor tidak ada
+        features     = np.concatenate([img_features, [moisture_val]]).reshape(1, -1)  # shape: (1, 31)
+
+        # Prediksi
+        pred         = model.predict(features)
+        proba        = model.predict_proba(features)[0]
+        label_kamera = label_encoder.inverse_transform(pred)[0]         # 'segar' / 'cukup_segar' / 'busuk'
+        conf_kamera  = float(np.max(proba) * 100)
+
+        # Gabung hasil
         hasil         = gabung_hasil(label_kamera, conf_kamera, kadar_air)
         durasi, saran = hitung_ketahanan(hasil['label'], hasil['confidence'])
 
+        # Estimasi tanggal kadaluarsa
         jam_est = 0
         if 'hari' in durasi:
             jam_est = int(durasi.split()[0]) * 24
         elif 'jam' in durasi:
             jam_est = int(durasi.split()[0])
-
         estimasi = (datetime.now() + timedelta(hours=jam_est)).strftime('%d %b %Y')
 
+        # Label untuk tampilan UI
+        label_tampil = LABEL_DISPLAY.get(hasil['label'], hasil['label'])
+
         return jsonify({
-            'label'      : hasil['label'],
+            'label'      : label_tampil,
             'confidence' : hasil['confidence'],
             'sumber'     : hasil['sumber'],
             'durasi'     : durasi,
             'saran'      : saran,
             'estimasi'   : estimasi,
             'detail_kamera': {
-                cls: round(float(p * 100), 2)
+                LABEL_DISPLAY.get(cls, cls): round(float(p * 100), 2)
                 for cls, p in zip(label_encoder.classes_, proba)
             },
             'sensor': {
