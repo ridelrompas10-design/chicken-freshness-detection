@@ -1,330 +1,329 @@
 const SERVER = ''
-let stream      = null
-let cameraOn    = false
-let uploadedBlob = null
-let activeTab   = 'cam'
-const video     = document.getElementById('video')
 
-// =====================
+let stream = null
+let cameraOn = false
+let uploadedBlob = null
+
+const $ = id => document.getElementById(id)
+const video = $('video')
+
+// ======================
 // JAM
-// =====================
+// ======================
 setInterval(() => {
-  document.getElementById('clock').textContent =
+  $('clock').textContent =
     new Date().toLocaleTimeString('id-ID')
 }, 1000)
 
-// =====================
-// UPDATE SENSOR TIAP 2 DETIK
-// =====================
+
+// ======================
+// SENSOR REALTIME
+// ======================
 async function updateSensor() {
+
   try {
-    const res = await fetch(SERVER + '/sensor-status')
-    const d   = await res.json()
 
-    if (d.valid) {
-      setTxt('sdot', 'dot on', true)
-      setTxt('stxt', 'Terhubung')
-      setTxt('s1',   d.sensor_1 + '%')
-      setTxt('s2',   d.sensor_2 + '%')
-      setTxt('s3',   d.sensor_3 + '%')
-      setTxt('avg',  d.rata_rata + '%')
-      setTxt('kondisi', d.kondisi)
-      setTxt('waktu',   d.waktu)
+    const d = await (await fetch(SERVER + '/sensor-status')).json()
 
-      warnaVal('avg', d.rata_rata)
-      warnaVal('s1',  d.sensor_1)
-      warnaVal('s2',  d.sensor_2)
-      warnaVal('s3',  d.sensor_3)
+    $('sdot').className = d.valid ? 'dot on' : 'dot off'
+    $('stxt').textContent = d.valid ? 'Terhubung' : 'Offline'
 
-      const w = document.getElementById('swarn')
-      if (d.rata_rata > 92) {
-        w.style.display = 'block'
-        w.textContent   = 'Daging kemungkinan masih beku. Tunggu 5-10 menit.'
-      } else {
-        w.style.display = 'none'
-      }
-    } else {
-      setTxt('sdot', 'dot off', true)
-      setTxt('stxt', 'Tidak terhubung')
-    }
+    ;['1','2','3'].forEach(i => {
+
+      const val = Number(d[`sensor_${i}`] || 0)
+
+      $(`s${i}`).textContent = val.toFixed(1) + '%'
+
+      warnaVal(`s${i}`, val)
+    })
+
+    const avg = Number(d.rata_rata || 0)
+
+    $('avg').textContent = avg.toFixed(1) + '%'
+
+    warnaVal('avg', avg)
+
+    $('kondisi').textContent = d.kondisi || '-'
+    $('waktu').textContent = d.waktu || '-'
+
+    $('swarn').style.display =
+      avg > 92 ? 'block' : 'none'
+
+    $('swarn').textContent =
+      'Daging kemungkinan masih beku. Tunggu 5-10 menit.'
+
   } catch(e) {
-    setTxt('stxt', 'Offline')
+
+    $('stxt').textContent = 'Offline'
   }
 }
 
 setInterval(updateSensor, 2000)
 updateSensor()
 
-// =====================
-// HELPER
-// =====================
-function setTxt(id, val, isClass = false) {
-  const el = document.getElementById(id)
-  if (!el) return
-  if (isClass) el.className = val
-  else el.textContent = val
-}
 
+// ======================
+// WARNA SENSOR
+// ======================
 function warnaVal(id, val) {
-  const el = document.getElementById(id)
-  if (!el) return
-  if      (val >= 75) el.style.color = '#22c55e'
-  else if (val >= 60) el.style.color = '#f97316'
-  else                el.style.color = '#ef4444'
+
+  $(id).style.color =
+    val >= 75 ? '#ef4444' :
+    val >= 60 ? '#f97316' :
+                 '#22c55e'
 }
 
-function setBadge(txt, cls) {
-  const el       = document.getElementById('badge')
-  el.textContent = txt
-  el.className   = cls
+
+// ======================
+// BADGE
+// ======================
+function badge(txt, cls='off') {
+
+  $('badge').textContent = txt
+  $('badge').className = 'badge ' + cls
 }
 
-// =====================
-// TAB SWITCHER
-// =====================
+
+// ======================
+// SWITCH TAB
+// ======================
 function switchTab(tab) {
-  activeTab = tab
-  document.getElementById('panel-cam').style.display    = tab === 'cam'    ? 'block' : 'none'
-  document.getElementById('panel-upload').style.display = tab === 'upload' ? 'block' : 'none'
-  document.getElementById('tab-cam').classList.toggle('active',    tab === 'cam')
-  document.getElementById('tab-upload').classList.toggle('active', tab === 'upload')
 
-  // Matikan kamera jika pindah ke upload
-  if (tab === 'upload' && cameraOn) {
-    if (stream) stream.getTracks().forEach(t => t.stop())
-    video.srcObject = null
-    cameraOn        = false
-    document.getElementById('btn-cam').textContent = 'Kamera ON'
-    setBadge('Kamera belum aktif', 'badge off')
-    document.getElementById('cam-select-row').style.display = 'none'
-  }
+  $('panel-cam').style.display =
+    tab === 'cam' ? 'block' : 'none'
+
+  $('panel-upload').style.display =
+    tab === 'upload' ? 'block' : 'none'
+
+  $('tab-cam').classList.toggle('active', tab === 'cam')
+  $('tab-upload').classList.toggle('active', tab === 'upload')
+
+  if (tab === 'upload' && cameraOn)
+    toggleCamera()
 }
 
-// =====================
-// KAMERA — deteksi & pilih kamera
-// =====================
-async function listKamera() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices()
-    const cameras = devices.filter(d => d.kind === 'videoinput')
-    const sel     = document.getElementById('cam-select')
-    sel.innerHTML = ''
-    cameras.forEach((cam, i) => {
-      const opt   = document.createElement('option')
-      opt.value   = cam.deviceId
-      opt.textContent = cam.label || `Kamera ${i + 1}`
-      sel.appendChild(opt)
-    })
-    document.getElementById('cam-select-row').style.display =
-      cameras.length > 1 ? 'flex' : 'none'
-  } catch(e) {
-    console.warn('Gagal list kamera:', e)
-  }
-}
 
-async function gantiKamera() {
-  if (!cameraOn) return
-  const deviceId = document.getElementById('cam-select').value
-  if (stream) stream.getTracks().forEach(t => t.stop())
-  try {
-    stream          = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: deviceId } }
-    })
-    video.srcObject = stream
-  } catch(e) {
-    alert('Gagal ganti kamera: ' + e.message)
-  }
-}
-
+// ======================
+// TOGGLE CAMERA
+// ======================
 async function toggleCamera() {
-  const btn = document.getElementById('btn-cam')
+
+  const btn = $('btn-cam')
+
   if (!cameraOn) {
+
     try {
-      // Minta izin dulu untuk dapat label kamera
-      stream          = await navigator.mediaDevices.getUserMedia({ video: true })
+
+      stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: true
+        })
+
       video.srcObject = stream
-      cameraOn        = true
+
+      cameraOn = true
+
       btn.textContent = 'Kamera OFF'
-      setBadge('Kamera aktif', 'badge on')
-      await listKamera()
+
+      badge('Kamera aktif', 'on')
+
     } catch(e) {
-      alert('Gagal akses kamera: ' + e.message)
+
+      alert(e.message)
     }
+
   } else {
-    if (stream) stream.getTracks().forEach(t => t.stop())
+
+    stream?.getTracks().forEach(t => t.stop())
+
     video.srcObject = null
-    cameraOn        = false
+
+    cameraOn = false
+
     btn.textContent = 'Kamera ON'
-    setBadge('Kamera belum aktif', 'badge off')
-    document.getElementById('cam-select-row').style.display = 'none'
+
+    badge('Kamera belum aktif')
   }
 }
 
+
+// ======================
+// CAPTURE FRAME
+// ======================
 function captureFrame() {
-  const c   = document.createElement('canvas')
-  c.width   = video.videoWidth
-  c.height  = video.videoHeight
-  c.getContext('2d').drawImage(video, 0, 0)
-  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.9))
+
+  const c = document.createElement('canvas')
+
+  c.width = video.videoWidth
+  c.height = video.videoHeight
+
+  c.getContext('2d').drawImage(video,0,0)
+
+  return new Promise(r =>
+    c.toBlob(r,'image/jpeg',0.9)
+  )
 }
 
-// =====================
-// PREDIKSI KAMERA
-// =====================
-async function predict() {
-  if (!cameraOn) { alert('Nyalakan kamera dulu!'); return }
-  setBadge('Menganalisis...', 'badge off')
 
-  const blob = await captureFrame()
-  const fd   = new FormData()
-  fd.append('image', blob, 'frame.jpg')
+// ======================
+// PREDICT
+// ======================
+async function predict(blob=null) {
 
-  try {
-    const res = await fetch(SERVER + '/predict', { method: 'POST', body: fd })
-    const d   = await res.json()
-    if (d.error) { alert('Error: ' + d.error); return }
-    tampilHasil(d)
-    setBadge('Prediksi selesai', 'badge on')
-  } catch(e) {
-    alert('Gagal koneksi ke server: ' + e.message)
-  }
-}
-
-// =====================
-// UPLOAD FOTO
-// =====================
-function handleFile(event) {
-  const file = event.target.files[0]
-  if (!file) return
-  tampilPreview(file)
-}
-
-function handleDrop(event) {
-  event.preventDefault()
-  const file = event.dataTransfer.files[0]
-  if (!file || !file.type.startsWith('image/')) {
-    alert('Hanya file gambar yang didukung!')
+  if (!blob && !cameraOn) {
+    alert('Nyalakan kamera dulu!')
     return
   }
-  tampilPreview(file)
-}
 
-function tampilPreview(file) {
-  uploadedBlob = file
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const img  = document.getElementById('preview-img')
-    img.src    = e.target.result
-    img.style.display = 'block'
-    document.getElementById('upload-placeholder').style.display = 'none'
-    document.getElementById('btn-hapus').style.display = 'inline-flex'
+  badge('Menganalisis...')
 
-    // Tampilkan nama file
-    const badge         = document.getElementById('upload-badge')
-    badge.style.display = 'block'
-    badge.className     = 'badge on'
-    badge.textContent   = '✅ ' + file.name
+  if (!blob)
+    blob = await captureFrame()
+
+  const fd = new FormData()
+
+  fd.append('image', blob, 'img.jpg')
+
+  try {
+
+    const d = await (
+      await fetch(SERVER + '/predict', {
+        method:'POST',
+        body:fd
+      })
+    ).json()
+
+    if (d.error)
+      return alert(d.error)
+
+    tampilHasil(d)
+
+    badge('Prediksi selesai', 'on')
+
+  } catch(e) {
+
+    alert(e.message)
   }
-  reader.readAsDataURL(file)
 }
 
+
+// ======================
+// UPLOAD
+// ======================
+function handleFile(e) {
+
+  const file = e.target.files[0]
+
+  if (!file) return
+
+  uploadedBlob = file
+
+  $('preview-img').src =
+    URL.createObjectURL(file)
+
+  $('preview-img').style.display = 'block'
+
+  $('upload-placeholder').style.display = 'none'
+
+  $('btn-hapus').style.display = 'inline-flex'
+
+  $('upload-badge').style.display = 'block'
+
+  $('upload-badge').className = 'badge on'
+
+  $('upload-badge').textContent =
+    '✅ ' + file.name
+}
+
+
+// ======================
+// PREDICT UPLOAD
+// ======================
+function predictUpload() {
+
+  if (!uploadedBlob)
+    return alert('Upload foto dulu!')
+
+  predict(uploadedBlob)
+}
+
+
+// ======================
+// HAPUS FOTO
+// ======================
 function hapusFoto() {
+
   uploadedBlob = null
-  document.getElementById('preview-img').style.display = 'none'
-  document.getElementById('preview-img').src = ''
-  document.getElementById('upload-placeholder').style.display = 'block'
-  document.getElementById('btn-hapus').style.display = 'none'
-  document.getElementById('file-input').value = ''
 
-  const badge         = document.getElementById('upload-badge')
-  badge.style.display = 'none'
-  badge.textContent   = ''
+  $('preview-img').style.display = 'none'
 
-  // Reset hasil prediksi
+  $('upload-placeholder').style.display = 'block'
+
+  $('btn-hapus').style.display = 'none'
+
+  $('upload-badge').style.display = 'none'
+
   resetHasil()
 }
 
-// =====================
-// PREDIKSI UPLOAD
-// =====================
-async function predictUpload() {
-  if (!uploadedBlob) {
-    alert('Upload foto daging dulu!')
-    return
-  }
 
-  const badge         = document.getElementById('upload-badge')
-  badge.style.display = 'block'
-  badge.className     = 'badge off'
-  badge.textContent   = 'Menganalisis foto...'
-
-  const fd = new FormData()
-  fd.append('image', uploadedBlob, 'upload.jpg')
-
-  try {
-    const res = await fetch(SERVER + '/predict', { method: 'POST', body: fd })
-    const d   = await res.json()
-    if (d.error) {
-      badge.className   = 'badge off'
-      badge.textContent = '❌ Error: ' + d.error
-      return
-    }
-    tampilHasil(d)
-    badge.className   = 'badge on'
-    badge.textContent = '✅ Prediksi selesai'
-  } catch(e) {
-    badge.className   = 'badge off'
-    badge.textContent = '❌ Gagal koneksi: ' + e.message
-  }
-}
-
-// =====================
+// ======================
 // TAMPIL HASIL
-// =====================
+// ======================
 function tampilHasil(d) {
+
   const warna = {
-    'Segar'          : '#22c55e',
-    'Setengah Segar' : '#f97316',
-    'Busuk'          : '#ef4444'
+    'Segar':'#22c55e',
+    'Setengah Segar':'#f97316',
+    'Busuk':'#ef4444'
   }
-  const wc = warna[d.label] || '#aaa'
 
-  const lbl       = document.getElementById('hlabel')
-  lbl.textContent = d.label ? d.label.toUpperCase() : '-'
-  lbl.style.color = wc
-  lbl.className   = 'result-label'
+  const c = warna[d.label] || '#aaa'
 
-  setTxt('hconf',   'Keyakinan: ' + d.confidence + '%')
-  setTxt('hsumber', d.sumber || '')
+  $('hlabel').textContent =
+    d.label?.toUpperCase() || '-'
+
+  $('hlabel').style.color = c
+
+  $('hconf').textContent =
+    'Keyakinan: ' + d.confidence + '%'
+
+  $('hsumber').textContent =
+    d.sumber || ''
 
   const det = d.detail_kamera || {}
-  setTxt('vsegar',    (det['Segar']            || 0).toFixed(1) + '%')
-  setTxt('vsetengah', (det['Setengah Segar']   || det['Setengah'] || 0).toFixed(1) + '%')
-  setTxt('vbusuk',    (det['Busuk']            || 0).toFixed(1) + '%')
 
-  const dv       = document.getElementById('durasi')
-  dv.textContent = d.durasi || '-'
-  dv.style.color = wc
+  $('vsegar').textContent =
+    (det['Segar'] || 0).toFixed(1) + '%'
 
-  setTxt('saran',  d.saran    || '')
-  setTxt('est',    d.estimasi ? 'Estimasi: ' + d.estimasi : '')
-  setTxt('sumber', d.sumber   || '-')
+  $('vsetengah').textContent =
+    (det['Setengah Segar'] || 0).toFixed(1) + '%'
+
+  $('vbusuk').textContent =
+    (det['Busuk'] || 0).toFixed(1) + '%'
+
+  $('durasi').textContent = d.durasi || '-'
+  $('durasi').style.color = c
+
+  $('saran').textContent = d.saran || ''
+
+  $('est').textContent =
+    d.estimasi ?
+    'Estimasi: ' + d.estimasi : ''
+
+  $('sumber').textContent =
+    d.sumber || '-'
 }
 
-// =====================
-// RESET HASIL
-// =====================
+
+// ======================
+// RESET
+// ======================
 function resetHasil() {
-  setTxt('hlabel',   '-')
-  setTxt('hconf',    '')
-  setTxt('hsumber',  '')
-  setTxt('vsegar',   '- %')
-  setTxt('vsetengah','- %')
-  setTxt('vbusuk',   '- %')
-  setTxt('durasi',   '-')
-  setTxt('saran',    '')
-  setTxt('est',      '')
-  setTxt('sumber',   '')
-  document.getElementById('hlabel').style.color = ''
-  document.getElementById('durasi').style.color = ''
+
+  ;[
+    'hlabel','hconf','hsumber',
+    'vsegar','vsetengah','vbusuk',
+    'durasi','saran','est','sumber'
+  ].forEach(id => $(id).textContent = '-')
 }
