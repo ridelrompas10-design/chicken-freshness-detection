@@ -183,7 +183,7 @@ def thread_sensor():
                                     data_sensor['kondisi']  = cek_kondisi_sensor(data.get('avg', 0))['pesan']
                                     data_sensor['waktu']    = datetime.now().strftime('%H:%M:%S')
                                     data_sensor['valid']    = True
-                                print(f"[Sensor] avg={data.get('avg',0):.1f}%")
+                                print(data_sensor)
                             except json.JSONDecodeError:
                                 pass
                     else:
