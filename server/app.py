@@ -294,17 +294,40 @@ def sensor_status():
 @app.route('/sensor', methods=['POST'])
 def sensor_post():
     try:
-        body      = request.json
-        kadar_air = float(body.get('kadar_air', 0))
-        kondisi   = cek_kondisi_sensor(kadar_air)
+        body = request.json
+
+        s1  = float(body.get('sensor_1', 0))
+        s2  = float(body.get('sensor_2', 0))
+        s3  = float(body.get('sensor_3', 0))
+        avg = float(body.get('rata_rata', 0))
+
+        kondisi = body.get('kondisi', '-')
+
         with sensor_lock:
-            data_sensor['rata_rata'] = round(kadar_air, 1)
-            data_sensor['kondisi']   = kondisi['pesan']
-            data_sensor['waktu']     = datetime.now().strftime('%H:%M:%S')
-            data_sensor['valid']     = True
-        return jsonify({'status': 'ok', 'kadar_air': kadar_air})
+
+            data_sensor['sensor_1']  = round(s1, 1)
+            data_sensor['sensor_2']  = round(s2, 1)
+            data_sensor['sensor_3']  = round(s3, 1)
+            data_sensor['rata_rata'] = round(avg, 1)
+
+            data_sensor['kondisi'] = kondisi
+
+            data_sensor['waktu'] = datetime.now().strftime('%H:%M:%S')
+
+            data_sensor['valid'] = True
+
+        print(data_sensor)
+
+        return jsonify({
+            'status': 'success',
+            'data': data_sensor
+        })
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+        return jsonify({
+            'error': str(e)
+        }), 500
 
 @app.route('/status', methods=['GET'])
 def status():

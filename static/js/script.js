@@ -7,8 +7,9 @@ let uploadedBlob = null
 const $ = id => document.getElementById(id)
 const video = $('video')
 
+
 // ======================
-// JAM
+// JAM REALTIME
 // ======================
 setInterval(() => {
   $('clock').textContent =
@@ -17,44 +18,50 @@ setInterval(() => {
 
 
 // ======================
-// SENSOR REALTIME
+// UPDATE SENSOR REALTIME
 // ======================
 async function updateSensor() {
 
   try {
 
-    const d = await (await fetch(SERVER + '/sensor-status')).json()
+    const res = await fetch(SERVER + '/sensor-status')
+    const d = await res.json()
 
+    // STATUS
     $('sdot').className = d.valid ? 'dot on' : 'dot off'
     $('stxt').textContent = d.valid ? 'Terhubung' : 'Offline'
 
-    ;['1','2','3'].forEach(i => {
-
-      const val = Number(d[`sensor_${i}`] || 0)
-
-      $(`s${i}`).textContent = val.toFixed(1) + '%'
-
-      warnaVal(`s${i}`, val)
-    })
-
+    // SENSOR
+    const s1 = Number(d.sensor_1 || 0)
+    const s2 = Number(d.sensor_2 || 0)
+    const s3 = Number(d.sensor_3 || 0)
     const avg = Number(d.rata_rata || 0)
 
+    $('s1').textContent = s1.toFixed(1) + '%'
+    $('s2').textContent = s2.toFixed(1) + '%'
+    $('s3').textContent = s3.toFixed(1) + '%'
     $('avg').textContent = avg.toFixed(1) + '%'
 
+    warnaVal('s1', s1)
+    warnaVal('s2', s2)
+    warnaVal('s3', s3)
     warnaVal('avg', avg)
 
+    // KONDISI
     $('kondisi').textContent = d.kondisi || '-'
     $('waktu').textContent = d.waktu || '-'
 
+    // WARNING
     $('swarn').style.display =
       avg > 92 ? 'block' : 'none'
 
     $('swarn').textContent =
       'Daging kemungkinan masih beku. Tunggu 5-10 menit.'
 
-  } catch(e) {
+  } catch (e) {
 
     $('stxt').textContent = 'Offline'
+    $('sdot').className = 'dot off'
   }
 }
 
@@ -67,20 +74,22 @@ updateSensor()
 // ======================
 function warnaVal(id, val) {
 
-  $(id).style.color =
-    val >= 75 ? '#ef4444' :
+  const el = $(id)
+
+  el.style.color =
+    val >= 75 ? '#22c55e' :
     val >= 60 ? '#f97316' :
-                 '#22c55e'
+                 '#ef4444'
 }
 
 
 // ======================
-// BADGE
+// BADGE KAMERA
 // ======================
-function badge(txt, cls='off') {
+function badge(text, type='off') {
 
-  $('badge').textContent = txt
-  $('badge').className = 'badge ' + cls
+  $('badge').textContent = text
+  $('badge').className = 'badge ' + type
 }
 
 
@@ -95,9 +104,17 @@ function switchTab(tab) {
   $('panel-upload').style.display =
     tab === 'upload' ? 'block' : 'none'
 
-  $('tab-cam').classList.toggle('active', tab === 'cam')
-  $('tab-upload').classList.toggle('active', tab === 'upload')
+  $('tab-cam').classList.toggle(
+    'active',
+    tab === 'cam'
+  )
 
+  $('tab-upload').classList.toggle(
+    'active',
+    tab === 'upload'
+  )
+
+  // MATIKAN KAMERA SAAT PINDAH
   if (tab === 'upload' && cameraOn)
     toggleCamera()
 }
@@ -127,14 +144,15 @@ async function toggleCamera() {
 
       badge('Kamera aktif', 'on')
 
-    } catch(e) {
+    } catch (e) {
 
-      alert(e.message)
+      alert('Gagal akses kamera')
     }
 
   } else {
 
-    stream?.getTracks().forEach(t => t.stop())
+    stream?.getTracks()
+      .forEach(t => t.stop())
 
     video.srcObject = null
 
@@ -152,15 +170,18 @@ async function toggleCamera() {
 // ======================
 function captureFrame() {
 
-  const c = document.createElement('canvas')
+  const canvas =
+    document.createElement('canvas')
 
-  c.width = video.videoWidth
-  c.height = video.videoHeight
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
 
-  c.getContext('2d').drawImage(video,0,0)
+  canvas
+    .getContext('2d')
+    .drawImage(video, 0, 0)
 
-  return new Promise(r =>
-    c.toBlob(r,'image/jpeg',0.9)
+  return new Promise(resolve =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.9)
   )
 }
 
@@ -168,9 +189,10 @@ function captureFrame() {
 // ======================
 // PREDICT
 // ======================
-async function predict(blob=null) {
+async function predict(blob = null) {
 
   if (!blob && !cameraOn) {
+
     alert('Nyalakan kamera dulu!')
     return
   }
@@ -186,12 +208,15 @@ async function predict(blob=null) {
 
   try {
 
-    const d = await (
-      await fetch(SERVER + '/predict', {
-        method:'POST',
-        body:fd
-      })
-    ).json()
+    const res = await fetch(
+      SERVER + '/predict',
+      {
+        method: 'POST',
+        body: fd
+      }
+    )
+
+    const d = await res.json()
 
     if (d.error)
       return alert(d.error)
@@ -200,21 +225,50 @@ async function predict(blob=null) {
 
     badge('Prediksi selesai', 'on')
 
-  } catch(e) {
+  } catch (e) {
 
-    alert(e.message)
+    alert('Server offline')
   }
 }
 
 
 // ======================
-// UPLOAD
+// HANDLE FILE
 // ======================
 function handleFile(e) {
 
   const file = e.target.files[0]
 
   if (!file) return
+
+  tampilPreview(file)
+}
+
+
+// ======================
+// DRAG DROP
+// ======================
+function handleDrop(e) {
+
+  e.preventDefault()
+
+  const file = e.dataTransfer.files[0]
+
+  if (!file ||
+      !file.type.startsWith('image/')) {
+
+    alert('File harus gambar')
+    return
+  }
+
+  tampilPreview(file)
+}
+
+
+// ======================
+// PREVIEW
+// ======================
+function tampilPreview(file) {
 
   uploadedBlob = file
 
@@ -257,11 +311,15 @@ function hapusFoto() {
 
   $('preview-img').style.display = 'none'
 
+  $('preview-img').src = ''
+
   $('upload-placeholder').style.display = 'block'
 
   $('btn-hapus').style.display = 'none'
 
   $('upload-badge').style.display = 'none'
+
+  $('file-input').value = ''
 
   resetHasil()
 }
@@ -273,9 +331,10 @@ function hapusFoto() {
 function tampilHasil(d) {
 
   const warna = {
-    'Segar':'#22c55e',
-    'Setengah Segar':'#f97316',
-    'Busuk':'#ef4444'
+
+    'Segar': '#22c55e',
+    'Setengah Segar': '#f97316',
+    'Busuk': '#ef4444'
   }
 
   const c = warna[d.label] || '#aaa'
@@ -286,30 +345,35 @@ function tampilHasil(d) {
   $('hlabel').style.color = c
 
   $('hconf').textContent =
-    'Keyakinan: ' + d.confidence + '%'
+    'Keyakinan: ' +
+    Number(d.confidence || 0).toFixed(1) +
+    '%'
 
   $('hsumber').textContent =
-    d.sumber || ''
+    d.sumber || '-'
 
   const det = d.detail_kamera || {}
 
   $('vsegar').textContent =
-    (det['Segar'] || 0).toFixed(1) + '%'
+    Number(det['Segar'] || 0).toFixed(1) + '%'
 
   $('vsetengah').textContent =
-    (det['Setengah Segar'] || 0).toFixed(1) + '%'
+    Number(det['Setengah Segar'] || 0).toFixed(1) + '%'
 
   $('vbusuk').textContent =
-    (det['Busuk'] || 0).toFixed(1) + '%'
+    Number(det['Busuk'] || 0).toFixed(1) + '%'
 
-  $('durasi').textContent = d.durasi || '-'
+  $('durasi').textContent =
+    d.durasi || '-'
+
   $('durasi').style.color = c
 
-  $('saran').textContent = d.saran || ''
+  $('saran').textContent =
+    d.saran || '-'
 
   $('est').textContent =
     d.estimasi ?
-    'Estimasi: ' + d.estimasi : ''
+    'Estimasi: ' + d.estimasi : '-'
 
   $('sumber').textContent =
     d.sumber || '-'
@@ -317,13 +381,23 @@ function tampilHasil(d) {
 
 
 // ======================
-// RESET
+// RESET HASIL
 // ======================
 function resetHasil() {
 
-  ;[
-    'hlabel','hconf','hsumber',
-    'vsegar','vsetengah','vbusuk',
-    'durasi','saran','est','sumber'
-  ].forEach(id => $(id).textContent = '-')
+  $('hlabel').textContent = '-'
+  $('hconf').textContent = '-'
+  $('hsumber').textContent = '-'
+
+  $('vsegar').textContent = '- %'
+  $('vsetengah').textContent = '- %'
+  $('vbusuk').textContent = '- %'
+
+  $('durasi').textContent = '-'
+  $('saran').textContent = '-'
+  $('est').textContent = '-'
+  $('sumber').textContent = '-'
+
+  $('hlabel').style.color = '#fff'
+  $('durasi').style.color = '#fff'
 }
