@@ -49,18 +49,18 @@ sensor_lock = threading.Lock()
 # EKSTRAK FITUR GAMBAR
 # HANYA 30 FITUR — SESUAI MODEL TRAINING
 # =====================
-def extract_features(img):
+def extract_features(img, moisture=70.0):
     img = cv2.resize(img, (64, 64))
     features = []
 
-    # BGR: 3 channel x 4 stats = 12 fitur
+    # BGR: 12 fitur
     for ch in cv2.split(img):
         features.extend([
             np.mean(ch), np.std(ch),
             np.min(ch),  np.max(ch)
         ])
 
-    # HSV: 3 channel x 4 stats = 12 fitur
+    # HSV: 12 fitur
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     for ch in cv2.split(hsv):
         features.extend([
@@ -68,12 +68,15 @@ def extract_features(img):
             np.min(ch),  np.max(ch)
         ])
 
-    # LAB: 3 channel x 2 stats = 6 fitur
+    # LAB: 6 fitur
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     for ch in cv2.split(lab):
         features.extend([np.mean(ch), np.std(ch)])
 
-    # Total: 30 fitur
+    # Moisture: 1 fitur
+    features.append(float(moisture))
+
+    # Total: 31 fitur
     return np.array(features, dtype=np.float32).reshape(1, -1)
 
 # =====================
@@ -263,11 +266,11 @@ def predict():
             sensor_ok    = data_sensor['valid']
             waktu_sensor = data_sensor['waktu']
 
-        # Ekstrak 30 fitur dari gambar SAJA
+        # Ekstrak 31 fitur dari gambar SAJA
         # Tidak ditambah moisture agar cocok dengan model
-        features = extract_features(img)
-        moisture_val = kadar_air if sensor_ok else 70.0
-        features = np.concatenate([img_features.flatten(), [moisture_val]]).reshape(1, -1)
+        moisture_val = float(kadar_air) if sensor_ok else 70.0
+        features     = extract_features(img, moisture=moisture_val)
+        print(f"[Fitur] total={features.shape[1]} moisture={moisture_val}")
 
         # Prediksi
         pred         = model.predict(features)
