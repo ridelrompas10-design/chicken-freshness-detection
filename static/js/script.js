@@ -192,7 +192,6 @@ function captureFrame() {
 async function predict(blob = null) {
 
   if (!blob && !cameraOn) {
-
     alert('Nyalakan kamera dulu!')
     return
   }
@@ -203,31 +202,37 @@ async function predict(blob = null) {
     blob = await captureFrame()
 
   const fd = new FormData()
-
   fd.append('image', blob, 'img.jpg')
 
   try {
 
-    const res = await fetch(
-      SERVER + '/predict',
-      {
-        method: 'POST',
-        body: fd
-      }
-    )
+    const res = await fetch(SERVER + '/predict', {
+      method: 'POST',
+      body: fd
+    })
 
-    const d = await res.json()
+    const text = await res.text()
+    console.log("RESPONSE:", text)
 
-    if (d.error)
-      return alert(d.error)
+    let d
+    try {
+      d = JSON.parse(text)
+    } catch {
+      throw new Error("Response bukan JSON")
+    }
+
+    if (d.error) {
+      alert(d.error)
+      return
+    }
 
     tampilHasil(d)
-
     badge('Prediksi selesai', 'on')
 
   } catch (e) {
 
-    alert('Server offline')
+    console.error("ERROR:", e)
+    alert('Server error / response invalid')
   }
 }
 
