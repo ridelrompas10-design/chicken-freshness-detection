@@ -266,6 +266,8 @@ def predict():
         # Ekstrak 30 fitur dari gambar SAJA
         # Tidak ditambah moisture agar cocok dengan model
         features = extract_features(img)
+        moisture_val = kadar_air if sensor_ok else 70.0
+        features = np.concatenate([img_features.flatten(), [moisture_val]]).reshape(1, -1)
 
         # Prediksi
         pred         = model.predict(features)
