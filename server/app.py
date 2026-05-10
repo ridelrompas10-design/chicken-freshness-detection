@@ -29,6 +29,8 @@ CORS(app)
 model         = joblib.load(os.path.join(BASE_DIR, 'model', 'rf_model.pkl'))
 label_encoder = joblib.load(os.path.join(BASE_DIR, 'model', 'label_encoder.pkl'))
 
+print("Label model:", label_encoder.classes_)
+
 # =====================
 # DATA SENSOR GLOBAL
 # =====================
@@ -44,60 +46,83 @@ data_sensor = {
 sensor_lock = threading.Lock()
 
 # =====================
-# EKSTRAK FITUR GAMBAR (30 fitur)
+# EKSTRAK FITUR GAMBAR
+# HANYA 30 FITUR — SESUAI MODEL TRAINING
 # =====================
 def extract_features(img):
     img = cv2.resize(img, (64, 64))
     features = []
 
-    # BGR: 3 channel x 4 stats = 12
+    # BGR: 3 channel x 4 stats = 12 fitur
     for ch in cv2.split(img):
-        features.extend([np.mean(ch), np.std(ch), np.min(ch), np.max(ch)])
+        features.extend([
+            np.mean(ch), np.std(ch),
+            np.min(ch),  np.max(ch)
+        ])
 
-    # HSV: 3 channel x 4 stats = 12
+    # HSV: 3 channel x 4 stats = 12 fitur
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     for ch in cv2.split(hsv):
-        features.extend([np.mean(ch), np.std(ch), np.min(ch), np.max(ch)])
+        features.extend([
+            np.mean(ch), np.std(ch),
+            np.min(ch),  np.max(ch)
+        ])
 
-    # LAB: 3 channel x 2 stats = 6
+    # LAB: 3 channel x 2 stats = 6 fitur
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     for ch in cv2.split(lab):
         features.extend([np.mean(ch), np.std(ch)])
 
-    # Total: 30 fitur (belum termasuk moisture)
-    return np.array(features, dtype=np.float32)
+    # Total: 30 fitur
+    return np.array(features, dtype=np.float32).reshape(1, -1)
 
 # =====================
 # CEK KONDISI SENSOR
 # =====================
 def cek_kondisi_sensor(kadar_air):
     if kadar_air > 92:
-        return {'valid': False, 'pesan': 'Daging kemungkinan masih beku. Tunggu 5-10 menit.', 'level': 'warning'}
+        return {
+            'valid' : False,
+            'pesan' : 'Daging kemungkinan masih beku. Tunggu 5-10 menit.',
+            'level' : 'warning'
+        }
     elif kadar_air < 5:
-        return {'valid': False, 'pesan': 'Sensor tidak terbaca. Pastikan menempel pada daging.', 'level': 'error'}
+        return {
+            'valid' : False,
+            'pesan' : 'Sensor tidak terbaca. Pastikan menempel pada daging.',
+            'level' : 'error'
+        }
     elif kadar_air >= 75:
-        return {'valid': True,  'pesan': 'Kadar air normal - daging segar',          'level': 'ok'}
+        return {
+            'valid' : True,
+            'pesan' : 'Kadar air normal - daging segar',
+            'level' : 'ok'
+        }
     elif kadar_air >= 60:
-        return {'valid': True,  'pesan': 'Kadar air sedang - daging setengah segar', 'level': 'ok'}
+        return {
+            'valid' : True,
+            'pesan' : 'Kadar air sedang - setengah segar',
+            'level' : 'ok'
+        }
     else:
-        return {'valid': True,  'pesan': 'Kadar air rendah - daging busuk',          'level': 'ok'}
-
-# =====================
-# LABEL DISPLAY - mapping label training ke tampilan UI
-# =====================
-LABEL_DISPLAY = {
-    'segar'      : 'Segar',
-    'cukup_segar': 'Setengah Segar',
-    'busuk'      : 'Busuk'
-}
+        return {
+            'valid' : True,
+            'pesan' : 'Kadar air rendah - daging busuk',
+            'level' : 'ok'
+        }
 
 # =====================
 # HITUNG KETAHANAN
-# FIX: label disesuaikan dengan label training
+# Gunakan label ASLI dari model
 # =====================
 def hitung_ketahanan(label, conf):
-    base = {'segar': 72, 'cukup_segar': 24, 'busuk': 0}
-    jam  = int(base.get(label, 0) * (conf / 100) * 1.1)
+    # Label dari model: Busuk, Segar, Setengah
+    base = {
+        'Segar'   : 72,
+        'Setengah': 24,
+        'Busuk'   : 0
+    }
+    jam = int(base.get(label, 0) * (conf / 100) * 1.1)
     if jam >= 48:
         return f"{jam//24} hari", "Simpan di kulkas 0-4°C"
     elif jam >= 1:
@@ -107,7 +132,6 @@ def hitung_ketahanan(label, conf):
 
 # =====================
 # GABUNG KAMERA + SENSOR
-# FIX: label sensor disesuaikan dengan label training
 # =====================
 def gabung_hasil(label_kamera, conf_kamera, kadar_air):
     kondisi = cek_kondisi_sensor(kadar_air)
@@ -121,10 +145,10 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
             'level_sensor': kondisi['level']
         }
 
-    # FIX: pakai label yang sama dengan training
-    if   kadar_air >= 75: label_sensor = 'segar'
-    elif kadar_air >= 60: label_sensor = 'cukup_segar'
-    else:                 label_sensor = 'busuk'
+    # Label sensor menggunakan label yang sama dengan model
+    if   kadar_air >= 75: label_sensor = 'Segar'
+    elif kadar_air >= 60: label_sensor = 'Setengah'
+    else:                 label_sensor = 'Busuk'
 
     if label_kamera == label_sensor:
         label_final = label_kamera
@@ -133,7 +157,7 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
     else:
         label_final = label_kamera
         conf_final  = conf_kamera * 0.85
-        sumber      = f'Kamera utama (sensor: {LABEL_DISPLAY.get(label_sensor, label_sensor)})'
+        sumber      = f'Kamera utama (sensor: {label_sensor})'
 
     return {
         'label'       : label_final,
@@ -149,7 +173,8 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
 def cari_port_esp32():
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if any(x in port.description for x in ['CP210', 'CH340', 'USB Serial', 'UART']):
+        if any(x in port.description for x in
+               ['CP210', 'CH340', 'USB Serial', 'UART']):
             return port.device
     return None
 
@@ -166,6 +191,7 @@ def thread_sensor():
             ser    = serial.Serial(port, 115200, timeout=2)
             buffer = ""
             print(f"Sensor terhubung di {port}")
+
             while True:
                 if ser.in_waiting > 0:
                     karakter = ser.read().decode('utf-8', errors='ignore')
@@ -176,21 +202,27 @@ def thread_sensor():
                             try:
                                 data = json.loads(baris)
                                 with sensor_lock:
-                                    data_sensor['sensor_1'] = round(data.get('s1', 0), 1)
-                                    data_sensor['sensor_2'] = round(data.get('s2', 0), 1)
-                                    data_sensor['sensor_3'] = round(data.get('s3', 0), 1)
-                                    data_sensor['rata_rata'] = round(data.get('avg', 0), 1)
-                                    data_sensor['kondisi']  = cek_kondisi_sensor(data.get('avg', 0))['pesan']
-                                    data_sensor['waktu']    = datetime.now().strftime('%H:%M:%S')
+                                    data_sensor['sensor_1'] = round(
+                                        data.get('s1', 0), 1)
+                                    data_sensor['sensor_2'] = round(
+                                        data.get('s2', 0), 1)
+                                    data_sensor['sensor_3'] = round(
+                                        data.get('s3', 0), 1)
+                                    data_sensor['rata_rata'] = round(
+                                        data.get('avg', 0), 1)
+                                    data_sensor['kondisi']  = cek_kondisi_sensor(
+                                        data.get('avg', 0))['pesan']
+                                    data_sensor['waktu']    = datetime.now(
+                                        ).strftime('%H:%M:%S')
                                     data_sensor['valid']    = True
-                                print(data_sensor)
+                                print(f"[Sensor] avg={data.get('avg',0):.1f}%")
                             except json.JSONDecodeError:
                                 pass
                     else:
                         buffer += karakter
+
         except serial.SerialException as e:
             print(f"Koneksi sensor terputus: {e}")
-            print("Mencoba reconnect dalam 5 detik...")
             with sensor_lock:
                 data_sensor['valid'] = False
             import time
@@ -231,44 +263,42 @@ def predict():
             sensor_ok    = data_sensor['valid']
             waktu_sensor = data_sensor['waktu']
 
-        # =====================================================
-        # FIX UTAMA: 30 fitur gambar + 1 moisture = 31 fitur
-        # Sesuai dengan cara training di train_model.py
-        # =====================================================
-        img_features = extract_features(img)                            # shape: (30,)
-        moisture_val = kadar_air if sensor_ok else 70.0                 # fallback jika sensor tidak ada
-        features     = np.concatenate([img_features, [moisture_val]]).reshape(1, -1)  # shape: (1, 31)
+        # Ekstrak 30 fitur dari gambar SAJA
+        # Tidak ditambah moisture agar cocok dengan model
+        features = extract_features(img)
 
         # Prediksi
         pred         = model.predict(features)
         proba        = model.predict_proba(features)[0]
-        label_kamera = label_encoder.inverse_transform(pred)[0]         # 'segar' / 'cukup_segar' / 'busuk'
+        label_kamera = label_encoder.inverse_transform(pred)[0]
         conf_kamera  = float(np.max(proba) * 100)
 
-        # Gabung hasil
+        print(f"[Predict] label={label_kamera} conf={conf_kamera:.1f}%")
+        print(f"[Classes] {label_encoder.classes_}")
+        print(f"[Proba]   {proba}")
+
+        # Gabung hasil kamera + sensor
         hasil         = gabung_hasil(label_kamera, conf_kamera, kadar_air)
         durasi, saran = hitung_ketahanan(hasil['label'], hasil['confidence'])
 
-        # Estimasi tanggal kadaluarsa
+        # Estimasi tanggal
         jam_est = 0
         if 'hari' in durasi:
             jam_est = int(durasi.split()[0]) * 24
         elif 'jam' in durasi:
             jam_est = int(durasi.split()[0])
-        estimasi = (datetime.now() + timedelta(hours=jam_est)).strftime('%d %b %Y')
-
-        # Label untuk tampilan UI
-        label_tampil = LABEL_DISPLAY.get(hasil['label'], hasil['label'])
+        estimasi = (datetime.now() + timedelta(
+            hours=jam_est)).strftime('%d %b %Y')
 
         return jsonify({
-            'label'      : label_tampil,
+            'label'      : hasil['label'],
             'confidence' : hasil['confidence'],
             'sumber'     : hasil['sumber'],
             'durasi'     : durasi,
             'saran'      : saran,
             'estimasi'   : estimasi,
             'detail_kamera': {
-                LABEL_DISPLAY.get(cls, cls): round(float(p * 100), 2)
+                cls: round(float(p * 100), 2)
                 for cls, p in zip(label_encoder.classes_, proba)
             },
             'sensor': {
@@ -284,6 +314,8 @@ def predict():
         })
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/sensor-status', methods=['GET'])
@@ -295,46 +327,29 @@ def sensor_status():
 def sensor_post():
     try:
         body = request.json
-
-        s1  = float(body.get('sensor_1', 0))
-        s2  = float(body.get('sensor_2', 0))
-        s3  = float(body.get('sensor_3', 0))
-        avg = float(body.get('rata_rata', 0))
-
-        kondisi = body.get('kondisi', '-')
-
+        s1   = float(body.get('sensor_1',  body.get('s1',  0)))
+        s2   = float(body.get('sensor_2',  body.get('s2',  0)))
+        s3   = float(body.get('sensor_3',  body.get('s3',  0)))
+        avg  = float(body.get('rata_rata', body.get('avg', 0)))
         with sensor_lock:
-
-            data_sensor['sensor_1']  = round(s1, 1)
-            data_sensor['sensor_2']  = round(s2, 1)
-            data_sensor['sensor_3']  = round(s3, 1)
+            data_sensor['sensor_1']  = round(s1,  1)
+            data_sensor['sensor_2']  = round(s2,  1)
+            data_sensor['sensor_3']  = round(s3,  1)
             data_sensor['rata_rata'] = round(avg, 1)
-
-            data_sensor['kondisi'] = kondisi
-
-            data_sensor['waktu'] = datetime.now().strftime('%H:%M:%S')
-
-            data_sensor['valid'] = True
-
-        print(data_sensor)
-
-        return jsonify({
-            'status': 'success',
-            'data': data_sensor
-        })
-
+            data_sensor['kondisi']   = cek_kondisi_sensor(avg)['pesan']
+            data_sensor['waktu']     = datetime.now().strftime('%H:%M:%S')
+            data_sensor['valid']     = True
+        return jsonify({'status': 'ok', 'data': data_sensor})
     except Exception as e:
-
-        return jsonify({
-            'error': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({
-        'server': 'online',
-        'sensor': data_sensor['valid'],
-        'waktu' : datetime.now().strftime('%H:%M:%S')
+        'server' : 'online',
+        'sensor' : data_sensor['valid'],
+        'waktu'  : datetime.now().strftime('%H:%M:%S'),
+        'classes': label_encoder.classes_.tolist()
     })
 
 if __name__ == '__main__':
