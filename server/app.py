@@ -138,42 +138,47 @@ def hitung_ketahanan(label, conf):
 # GABUNG KAMERA + SENSOR
 # =====================
 def gabung_hasil(label_kamera, conf_kamera, kadar_air):
+
     kondisi = cek_kondisi_sensor(kadar_air)
 
-    if kondisi['label'] == 'busuk':
-        return {
-            'label'       : label_kamera,
-            'confidence'  : round(conf_kamera, 2),
-            'sumber'      : 'Kamera saja (sensor tidak valid)',
-            'pesan_sensor': kondisi['pesan'],
-            'level_sensor': kondisi['level']
-        }
+    # ==========================
+    # LABEL SENSOR
+    # ==========================
+    if kadar_air >= 85:
 
-    # Label sensor menggunakan label yang sama dengan model
-    if kadar_air >= 75:
-        label_sensor = 'segar'
+        label_sensor = 'busuk'
 
     elif kadar_air >= 60:
+
         label_sensor = 'cukup_segar'
 
     else:
-        label_sensor = 'busuk'
 
+        label_sensor = 'segar'
+
+    # ==========================
+    # KAMERA + SENSOR SAMA
+    # ==========================
     if label_kamera == label_sensor:
+
         label_final = label_kamera
         conf_final  = min(conf_kamera * 1.1, 99.9)
-        sumber      = 'Kamera + Sensor (sepakat)'
+
+        sumber = 'Kamera + Sensor (sesuai)'
+
     else:
+
         label_final = label_kamera
-        conf_final  = conf_kamera * 0.85
-        sumber      = f'Kamera utama (sensor: {label_sensor})'
+        conf_final  = conf_kamera * 0.9
+
+        sumber = f'Kamera dominan (sensor: {label_sensor})'
 
     return {
+
         'label'       : label_final,
         'confidence'  : round(conf_final, 2),
         'sumber'      : sumber,
-        'pesan_sensor': kondisi['pesan'],
-        'level_sensor': kondisi['level']
+        'pesan_sensor': kondisi.get('pesan', '-')
     }
 
 # =====================
@@ -313,15 +318,14 @@ def predict():
                 for cls, p in zip(label_encoder.classes_, proba)
             },
             'sensor': {
-                'sensor_1' : s1,
-                'sensor_2' : s2,
-                'sensor_3' : s3,
-                'rata_rata': kadar_air,
-                'kondisi'  : hasil.get('pesan_sensor', '-'),
-                'level'    : hasil.get('level_sensor', '-'),
-                'terhubung': sensor_ok,
-                'waktu'    : waktu_sensor
-            }
+    'sensor_1' : s1,
+    'sensor_2' : s2,
+    'sensor_3' : s3,
+    'rata_rata': kadar_air,
+    'kondisi'  : hasil.get('pesan_sensor', '-'),
+    'terhubung': sensor_ok,
+    'waktu'    : waktu_sensor
+}
         })
 
     except Exception as e:
