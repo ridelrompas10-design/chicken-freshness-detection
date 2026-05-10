@@ -31,14 +31,28 @@ async function updateSensor() {
 
     const d = await res.json()
 
+    console.log('SENSOR:', d)
+
+    // ==========================
+    // VALID DEFAULT
+    // ==========================
+    const isValid =
+      typeof d.valid !== 'undefined'
+        ? d.valid
+        : true
+
+    // ==========================
     // STATUS
+    // ==========================
     $('sdot').className =
-      d.valid ? 'dot on' : 'dot off'
+      isValid ? 'dot on' : 'dot off'
 
     $('stxt').textContent =
-      d.valid ? 'Terhubung' : 'Offline'
+      isValid ? 'Terhubung' : 'Offline'
 
+    // ==========================
     // SENSOR VALUE
+    // ==========================
     const s1 =
       Number(d.sensor_1 || 0)
 
@@ -51,7 +65,9 @@ async function updateSensor() {
     const avg =
       Number(d.rata_rata || 0)
 
+    // ==========================
     // TEXT
+    // ==========================
     $('s1').textContent =
       s1.toFixed(1) + '%'
 
@@ -64,19 +80,25 @@ async function updateSensor() {
     $('avg').textContent =
       avg.toFixed(1) + '%'
 
+    // ==========================
     // BAR
+    // ==========================
     updateBar('bar1', s1)
     updateBar('bar2', s2)
     updateBar('bar3', s3)
 
+    // ==========================
     // KONDISI
+    // ==========================
     $('kondisi').textContent =
       d.kondisi || '-'
 
     $('waktu').textContent =
       d.waktu || '-'
 
+    // ==========================
     // WARNING
+    // ==========================
     $('swarn').style.display =
       avg > 92 ? 'block' : 'none'
 
@@ -84,6 +106,8 @@ async function updateSensor() {
       'Daging kemungkinan masih beku. Tunggu 5-10 menit.'
 
   } catch (e) {
+
+    console.error(e)
 
     $('stxt').textContent = 'Offline'
     $('sdot').className = 'dot off'
