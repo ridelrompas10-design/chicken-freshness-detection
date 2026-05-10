@@ -335,51 +335,89 @@ function hapusFoto() {
 // ======================
 function tampilHasil(d) {
 
+  // =====================================
+  // WARNA LABEL
+  // =====================================
   const warna = {
 
-    'Segar': '#22c55e',
-    'Setengah Segar': '#f97316',
-    'Busuk': '#ef4444'
+    'segar': '#22c55e',
+    'cukup_segar': '#f97316',
+    'busuk': '#ef4444'
   }
 
-  const c = warna[d.label] || '#aaa'
+  const label =
+    String(d.label || '').toLowerCase()
+
+  const c = warna[label] || '#aaa'
+
+  // =====================================
+  // FORMAT LABEL
+  // =====================================
+  const formatLabel = {
+
+    'segar': 'SEGAR',
+    'cukup_segar': 'CUKUP SEGAR',
+    'busuk': 'BUSUK'
+  }
 
   $('hlabel').textContent =
-    d.label?.toUpperCase() || '-'
+    formatLabel[label] || '-'
 
   $('hlabel').style.color = c
 
+  // =====================================
+  // CONFIDENCE
+  // =====================================
   $('hconf').textContent =
     'Keyakinan: ' +
     Number(d.confidence || 0).toFixed(1) +
     '%'
 
+  // =====================================
+  // SUMBER
+  // =====================================
   $('hsumber').textContent =
     d.sumber || '-'
 
+  // =====================================
+  // DETAIL MODEL
+  // =====================================
   const det = d.detail_kamera || {}
 
   $('vsegar').textContent =
-    Number(det['Segar'] || 0).toFixed(1) + '%'
+    Number(det['segar'] || 0).toFixed(1) + '%'
 
   $('vsetengah').textContent =
-    Number(det['Setengah Segar'] || 0).toFixed(1) + '%'
+    Number(det['cukup_segar'] || 0).toFixed(1) + '%'
 
   $('vbusuk').textContent =
-    Number(det['Busuk'] || 0).toFixed(1) + '%'
+    Number(det['busuk'] || 0).toFixed(1) + '%'
 
+  // =====================================
+  // DURASI
+  // =====================================
   $('durasi').textContent =
     d.durasi || '-'
 
   $('durasi').style.color = c
 
+  // =====================================
+  // SARAN
+  // =====================================
   $('saran').textContent =
     d.saran || '-'
 
+  // =====================================
+  // ESTIMASI
+  // =====================================
   $('est').textContent =
-    d.estimasi ?
-    'Estimasi: ' + d.estimasi : '-'
+    d.estimasi
+      ? 'Estimasi: ' + d.estimasi
+      : '-'
 
+  // =====================================
+  // SUMBER FINAL
+  // =====================================
   $('sumber').textContent =
     d.sumber || '-'
 }

@@ -121,9 +121,9 @@ def cek_kondisi_sensor(kadar_air):
 def hitung_ketahanan(label, conf):
     # Label dari model: Busuk, Segar, Setengah
     base = {
-        'Segar'   : 72,
-        'Setengah': 24,
-        'Busuk'   : 0
+    'segar'        : 72,
+    'cukup_segar' : 24,
+    'busuk'       : 0
     }
     jam = int(base.get(label, 0) * (conf / 100) * 1.1)
     if jam >= 48:
@@ -149,9 +149,14 @@ def gabung_hasil(label_kamera, conf_kamera, kadar_air):
         }
 
     # Label sensor menggunakan label yang sama dengan model
-    if   kadar_air >= 75: label_sensor = 'Segar'
-    elif kadar_air >= 60: label_sensor = 'Setengah'
-    else:                 label_sensor = 'Busuk'
+    if kadar_air >= 75:
+        label_sensor = 'segar'
+
+    elif kadar_air >= 60:
+        label_sensor = 'cukup_segar'
+
+    else:
+        label_sensor = 'busuk'
 
     if label_kamera == label_sensor:
         label_final = label_kamera
