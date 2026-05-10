@@ -12,44 +12,69 @@ const video = $('video')
 // JAM REALTIME
 // ======================
 setInterval(() => {
+
   $('clock').textContent =
     new Date().toLocaleTimeString('id-ID')
+
 }, 1000)
 
 
 // ======================
-// UPDATE SENSOR REALTIME
+// UPDATE SENSOR
 // ======================
 async function updateSensor() {
 
   try {
 
-    const res = await fetch(SERVER + '/sensor-status')
+    const res =
+      await fetch(SERVER + '/sensor-status')
+
     const d = await res.json()
 
     // STATUS
-    $('sdot').className = d.valid ? 'dot on' : 'dot off'
-    $('stxt').textContent = d.valid ? 'Terhubung' : 'Offline'
+    $('sdot').className =
+      d.valid ? 'dot on' : 'dot off'
 
-    // SENSOR
-    const s1 = Number(d.sensor_1 || 0)
-    const s2 = Number(d.sensor_2 || 0)
-    const s3 = Number(d.sensor_3 || 0)
-    const avg = Number(d.rata_rata || 0)
+    $('stxt').textContent =
+      d.valid ? 'Terhubung' : 'Offline'
 
-    $('s1').textContent = s1.toFixed(1) + '%'
-    $('s2').textContent = s2.toFixed(1) + '%'
-    $('s3').textContent = s3.toFixed(1) + '%'
-    $('avg').textContent = avg.toFixed(1) + '%'
+    // SENSOR VALUE
+    const s1 =
+      Number(d.sensor_1 || 0)
 
-    warnaVal('s1', s1)
-    warnaVal('s2', s2)
-    warnaVal('s3', s3)
-    warnaVal('avg', avg)
+    const s2 =
+      Number(d.sensor_2 || 0)
+
+    const s3 =
+      Number(d.sensor_3 || 0)
+
+    const avg =
+      Number(d.rata_rata || 0)
+
+    // TEXT
+    $('s1').textContent =
+      s1.toFixed(1) + '%'
+
+    $('s2').textContent =
+      s2.toFixed(1) + '%'
+
+    $('s3').textContent =
+      s3.toFixed(1) + '%'
+
+    $('avg').textContent =
+      avg.toFixed(1) + '%'
+
+    // BAR
+    updateBar('bar1', s1)
+    updateBar('bar2', s2)
+    updateBar('bar3', s3)
 
     // KONDISI
-    $('kondisi').textContent = d.kondisi || '-'
-    $('waktu').textContent = d.waktu || '-'
+    $('kondisi').textContent =
+      d.kondisi || '-'
+
+    $('waktu').textContent =
+      d.waktu || '-'
 
     // WARNING
     $('swarn').style.display =
@@ -70,11 +95,32 @@ updateSensor()
 
 
 // ======================
-// WARNA SENSOR
+// UPDATE BAR
+// ======================
+function updateBar(id, val) {
+
+  const bar = $(id)
+
+  if (!bar) return
+
+  bar.style.width =
+    Math.min(val, 100) + '%'
+
+  bar.style.background =
+    val >= 75 ? '#22c55e' :
+    val >= 60 ? '#f97316' :
+                 '#ef4444'
+}
+
+
+// ======================
+// WARNA VALUE
 // ======================
 function warnaVal(id, val) {
 
   const el = $(id)
+
+  if (!el) return
 
   el.style.color =
     val >= 75 ? '#22c55e' :
@@ -84,7 +130,7 @@ function warnaVal(id, val) {
 
 
 // ======================
-// BADGE KAMERA
+// BADGE
 // ======================
 function badge(text, type='off') {
 
@@ -114,7 +160,6 @@ function switchTab(tab) {
     tab === 'upload'
   )
 
-  // MATIKAN KAMERA SAAT PINDAH
   if (tab === 'upload' && cameraOn)
     toggleCamera()
 }
@@ -192,6 +237,7 @@ function captureFrame() {
 async function predict(blob = null) {
 
   if (!blob && !cameraOn) {
+
     alert('Nyalakan kamera dulu!')
     return
   }
@@ -202,36 +248,50 @@ async function predict(blob = null) {
     blob = await captureFrame()
 
   const fd = new FormData()
-  fd.append('image', blob, 'img.jpg')
+
+  fd.append(
+    'image',
+    blob,
+    'img.jpg'
+  )
 
   try {
 
-    const res = await fetch(SERVER + '/predict', {
-      method: 'POST',
-      body: fd
-    })
+    const res =
+      await fetch(SERVER + '/predict', {
+        method: 'POST',
+        body: fd
+      })
 
     const text = await res.text()
-    console.log("RESPONSE:", text)
+
+    console.log('RESPONSE:', text)
 
     let d
+
     try {
+
       d = JSON.parse(text)
+
     } catch {
-      throw new Error("Response bukan JSON")
+
+      throw new Error('Response bukan JSON')
     }
 
     if (d.error) {
+
       alert(d.error)
       return
     }
 
     tampilHasil(d)
+
     badge('Prediksi selesai', 'on')
 
   } catch (e) {
 
-    console.error("ERROR:", e)
+    console.error(e)
+
     alert('Server error / response invalid')
   }
 }
@@ -251,16 +311,19 @@ function handleFile(e) {
 
 
 // ======================
-// DRAG DROP
+// HANDLE DROP
 // ======================
 function handleDrop(e) {
 
   e.preventDefault()
 
-  const file = e.dataTransfer.files[0]
+  const file =
+    e.dataTransfer.files[0]
 
-  if (!file ||
-      !file.type.startsWith('image/')) {
+  if (
+    !file ||
+    !file.type.startsWith('image/')
+  ) {
 
     alert('File harus gambar')
     return
@@ -280,15 +343,20 @@ function tampilPreview(file) {
   $('preview-img').src =
     URL.createObjectURL(file)
 
-  $('preview-img').style.display = 'block'
+  $('preview-img').style.display =
+    'block'
 
-  $('upload-placeholder').style.display = 'none'
+  $('upload-placeholder').style.display =
+    'none'
 
-  $('btn-hapus').style.display = 'inline-flex'
+  $('btn-hapus').style.display =
+    'inline-flex'
 
-  $('upload-badge').style.display = 'block'
+  $('upload-badge').style.display =
+    'block'
 
-  $('upload-badge').className = 'badge on'
+  $('upload-badge').className =
+    'badge on'
 
   $('upload-badge').textContent =
     '✅ ' + file.name
@@ -300,8 +368,11 @@ function tampilPreview(file) {
 // ======================
 function predictUpload() {
 
-  if (!uploadedBlob)
-    return alert('Upload foto dulu!')
+  if (!uploadedBlob) {
+
+    alert('Upload foto dulu!')
+    return
+  }
 
   predict(uploadedBlob)
 }
@@ -314,15 +385,19 @@ function hapusFoto() {
 
   uploadedBlob = null
 
-  $('preview-img').style.display = 'none'
+  $('preview-img').style.display =
+    'none'
 
   $('preview-img').src = ''
 
-  $('upload-placeholder').style.display = 'block'
+  $('upload-placeholder').style.display =
+    'block'
 
-  $('btn-hapus').style.display = 'none'
+  $('btn-hapus').style.display =
+    'none'
 
-  $('upload-badge').style.display = 'none'
+  $('upload-badge').style.display =
+    'none'
 
   $('file-input').value = ''
 
@@ -335,9 +410,11 @@ function hapusFoto() {
 // ======================
 function tampilHasil(d) {
 
-  // =====================================
-  // WARNA LABEL
-  // =====================================
+  console.log('HASIL:', d)
+
+  const label =
+    String(d.label || '').toLowerCase()
+
   const warna = {
 
     'segar': '#22c55e',
@@ -345,81 +422,84 @@ function tampilHasil(d) {
     'busuk': '#ef4444'
   }
 
-  const label =
-    String(d.label || '').toLowerCase()
-
-  const c = warna[label] || '#aaa'
-
-  // =====================================
-  // FORMAT LABEL
-  // =====================================
-  const formatLabel = {
+  const nama = {
 
     'segar': 'SEGAR',
     'cukup_segar': 'CUKUP SEGAR',
     'busuk': 'BUSUK'
   }
 
+  const c =
+    warna[label] || '#aaa'
+
+  // LABEL
   $('hlabel').textContent =
-    formatLabel[label] || '-'
+    nama[label] || '-'
 
   $('hlabel').style.color = c
 
-  // =====================================
   // CONFIDENCE
-  // =====================================
   $('hconf').textContent =
     'Keyakinan: ' +
     Number(d.confidence || 0).toFixed(1) +
     '%'
 
-  // =====================================
-  // SUMBER
-  // =====================================
-  $('hsumber').textContent =
-    d.sumber || '-'
+  // DETAIL
+  const det =
+    d.detail_kamera || {}
 
-  // =====================================
-  // DETAIL MODEL
-  // =====================================
-  const det = d.detail_kamera || {}
+  const segar =
+    Number(det['segar'] || 0)
+
+  const setengah =
+    Number(det['cukup_segar'] || 0)
+
+  const busuk =
+    Number(det['busuk'] || 0)
 
   $('vsegar').textContent =
-    Number(det['segar'] || 0).toFixed(1) + '%'
+    segar.toFixed(1) + '%'
 
   $('vsetengah').textContent =
-    Number(det['cukup_segar'] || 0).toFixed(1) + '%'
+    setengah.toFixed(1) + '%'
 
   $('vbusuk').textContent =
-    Number(det['busuk'] || 0).toFixed(1) + '%'
+    busuk.toFixed(1) + '%'
 
-  // =====================================
+  // BAR
+  $('bar-segar').style.width =
+    segar + '%'
+
+  $('bar-setengah').style.width =
+    setengah + '%'
+
+  $('bar-busuk').style.width =
+    busuk + '%'
+
   // DURASI
-  // =====================================
   $('durasi').textContent =
     d.durasi || '-'
 
   $('durasi').style.color = c
 
-  // =====================================
   // SARAN
-  // =====================================
   $('saran').textContent =
     d.saran || '-'
 
-  // =====================================
   // ESTIMASI
-  // =====================================
-  $('est').textContent =
+  $('est').innerHTML =
     d.estimasi
-      ? 'Estimasi: ' + d.estimasi
-      : '-'
+      ? '📅 Estimasi: ' + d.estimasi
+      : 'Belum ada estimasi'
 
-  // =====================================
-  // SUMBER FINAL
-  // =====================================
-  $('sumber').textContent =
-    d.sumber || '-'
+  // SENSOR
+  $('kondisi').textContent =
+    d.sensor?.kondisi || '-'
+
+  $('waktu').textContent =
+    d.sensor?.waktu || '-'
+
+  console.log('Render sukses')
 }
 
 
@@ -430,16 +510,18 @@ function resetHasil() {
 
   $('hlabel').textContent = '-'
   $('hconf').textContent = '-'
-  $('hsumber').textContent = '-'
 
   $('vsegar').textContent = '- %'
   $('vsetengah').textContent = '- %'
   $('vbusuk').textContent = '- %'
 
+  $('bar-segar').style.width = '0%'
+  $('bar-setengah').style.width = '0%'
+  $('bar-busuk').style.width = '0%'
+
   $('durasi').textContent = '-'
   $('saran').textContent = '-'
   $('est').textContent = '-'
-  $('sumber').textContent = '-'
 
   $('hlabel').style.color = '#fff'
   $('durasi').style.color = '#fff'
