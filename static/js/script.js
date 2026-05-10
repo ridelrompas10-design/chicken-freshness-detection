@@ -1,357 +1,408 @@
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-import numpy as np
-import joblib
-import cv2
-import os
-import threading
-import serial
-import serial.tools.list_ports
-import json
-from datetime import datetime, timedelta
+const SERVER = 'https://web-production-d351a.up.railway.app'
 
-# =====================
-# PATH SETUP
-# =====================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+let stream = null
+let cameraOn = false
+let uploadedBlob = null
 
-app = Flask(
-    __name__,
-    static_folder=os.path.join(BASE_DIR, 'static'),
-    static_url_path='/static',
-    template_folder=os.path.join(BASE_DIR, 'static')
-)
-CORS(app)
+const $ = id => document.getElementById(id)
+const video = $('video')
 
-# =====================
-# LOAD MODEL
-# =====================
-model         = joblib.load(os.path.join(BASE_DIR, 'model', 'rf_model.pkl'))
-label_encoder = joblib.load(os.path.join(BASE_DIR, 'model', 'label_encoder.pkl'))
 
-print("Label model:", label_encoder.classes_)
+// ======================
+// JAM REALTIME
+// ======================
+setInterval(() => {
+  $('clock').textContent =
+    new Date().toLocaleTimeString('id-ID')
+}, 1000)
 
-# =====================
-# DATA SENSOR GLOBAL
-# =====================
-data_sensor = {
-    'sensor_1' : 0.0,
-    'sensor_2' : 0.0,
-    'sensor_3' : 0.0,
-    'rata_rata' : 0.0,
-    'kondisi'   : '-',
-    'waktu'     : '-',
-    'valid'     : False
+
+// ======================
+// UPDATE SENSOR REALTIME
+// ======================
+async function updateSensor() {
+
+  try {
+
+    const res = await fetch(SERVER + '/sensor-status')
+    const d = await res.json()
+
+    // STATUS
+    $('sdot').className = d.valid ? 'dot on' : 'dot off'
+    $('stxt').textContent = d.valid ? 'Terhubung' : 'Offline'
+
+    // SENSOR
+    const s1 = Number(d.sensor_1 || 0)
+    const s2 = Number(d.sensor_2 || 0)
+    const s3 = Number(d.sensor_3 || 0)
+    const avg = Number(d.rata_rata || 0)
+
+    $('s1').textContent = s1.toFixed(1) + '%'
+    $('s2').textContent = s2.toFixed(1) + '%'
+    $('s3').textContent = s3.toFixed(1) + '%'
+    $('avg').textContent = avg.toFixed(1) + '%'
+
+    warnaVal('s1', s1)
+    warnaVal('s2', s2)
+    warnaVal('s3', s3)
+    warnaVal('avg', avg)
+
+    // KONDISI
+    $('kondisi').textContent = d.kondisi || '-'
+    $('waktu').textContent = d.waktu || '-'
+
+    // WARNING
+    $('swarn').style.display =
+      avg > 92 ? 'block' : 'none'
+
+    $('swarn').textContent =
+      'Daging kemungkinan masih beku. Tunggu 5-10 menit.'
+
+  } catch (e) {
+
+    $('stxt').textContent = 'Offline'
+    $('sdot').className = 'dot off'
+  }
 }
-sensor_lock = threading.Lock()
 
-# =====================
-# EKSTRAK FITUR GAMBAR
-# HANYA 30 FITUR — SESUAI MODEL TRAINING
-# =====================
-def extract_features(img):
-    img = cv2.resize(img, (64, 64))
-    features = []
+setInterval(updateSensor, 2000)
+updateSensor()
 
-    # BGR: 3 channel x 4 stats = 12 fitur
-    for ch in cv2.split(img):
-        features.extend([
-            np.mean(ch), np.std(ch),
-            np.min(ch),  np.max(ch)
-        ])
 
-    # HSV: 3 channel x 4 stats = 12 fitur
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    for ch in cv2.split(hsv):
-        features.extend([
-            np.mean(ch), np.std(ch),
-            np.min(ch),  np.max(ch)
-        ])
+// ======================
+// WARNA SENSOR
+// ======================
+function warnaVal(id, val) {
 
-    # LAB: 3 channel x 2 stats = 6 fitur
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    for ch in cv2.split(lab):
-        features.extend([np.mean(ch), np.std(ch)])
+  const el = $(id)
 
-    # Total: 30 fitur
-    return np.array(features, dtype=np.float32).reshape(1, -1)
+  el.style.color =
+    val >= 75 ? '#22c55e' :
+    val >= 60 ? '#f97316' :
+                 '#ef4444'
+}
 
-# =====================
-# CEK KONDISI SENSOR
-# =====================
-def cek_kondisi_sensor(kadar_air):
-    if kadar_air > 92:
-        return {
-            'valid' : False,
-            'pesan' : 'Daging kemungkinan masih beku. Tunggu 5-10 menit.',
-            'level' : 'warning'
-        }
-    elif kadar_air < 5:
-        return {
-            'valid' : False,
-            'pesan' : 'Sensor tidak terbaca. Pastikan menempel pada daging.',
-            'level' : 'error'
-        }
-    elif kadar_air >= 75:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air normal - daging segar',
-            'level' : 'ok'
-        }
-    elif kadar_air >= 60:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air sedang - setengah segar',
-            'level' : 'ok'
-        }
-    else:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air rendah - daging busuk',
-            'level' : 'ok'
-        }
 
-# =====================
-# HITUNG KETAHANAN
-# Gunakan label ASLI dari model
-# =====================
-def hitung_ketahanan(label, conf):
-    # Label dari model: Busuk, Segar, Setengah
-    base = {
-        'Segar'   : 72,
-        'Setengah': 24,
-        'Busuk'   : 0
-    }
-    jam = int(base.get(label, 0) * (conf / 100) * 1.1)
-    if jam >= 48:
-        return f"{jam//24} hari", "Simpan di kulkas 0-4°C"
-    elif jam >= 1:
-        return f"{jam} jam", "Segera masak atau simpan di kulkas"
-    else:
-        return "0", "Tidak layak dikonsumsi"
+// ======================
+// BADGE KAMERA
+// ======================
+function badge(text, type='off') {
 
-# =====================
-# GABUNG KAMERA + SENSOR
-# =====================
-def gabung_hasil(label_kamera, conf_kamera, kadar_air):
-    kondisi = cek_kondisi_sensor(kadar_air)
+  $('badge').textContent = text
+  $('badge').className = 'badge ' + type
+}
 
-    if not kondisi['valid']:
-        return {
-            'label'       : label_kamera,
-            'confidence'  : round(conf_kamera, 2),
-            'sumber'      : 'Kamera saja (sensor tidak valid)',
-            'pesan_sensor': kondisi['pesan'],
-            'level_sensor': kondisi['level']
-        }
 
-    # Label sensor menggunakan label yang sama dengan model
-    if   kadar_air >= 75: label_sensor = 'Segar'
-    elif kadar_air >= 60: label_sensor = 'Setengah'
-    else:                 label_sensor = 'Busuk'
+// ======================
+// SWITCH TAB
+// ======================
+function switchTab(tab) {
 
-    if label_kamera == label_sensor:
-        label_final = label_kamera
-        conf_final  = min(conf_kamera * 1.1, 99.9)
-        sumber      = 'Kamera + Sensor (sepakat)'
-    else:
-        label_final = label_kamera
-        conf_final  = conf_kamera * 0.85
-        sumber      = f'Kamera utama (sensor: {label_sensor})'
+  $('panel-cam').style.display =
+    tab === 'cam' ? 'block' : 'none'
 
-    return {
-        'label'       : label_final,
-        'confidence'  : round(conf_final, 2),
-        'sumber'      : sumber,
-        'pesan_sensor': kondisi['pesan'],
-        'level_sensor': kondisi['level']
-    }
+  $('panel-upload').style.display =
+    tab === 'upload' ? 'block' : 'none'
 
-# =====================
-# THREAD BACA SENSOR
-# =====================
-def cari_port_esp32():
-    ports = serial.tools.list_ports.comports()
-    for port in ports:
-        if any(x in port.description for x in
-               ['CP210', 'CH340', 'USB Serial', 'UART']):
-            return port.device
-    return None
+  $('tab-cam').classList.toggle(
+    'active',
+    tab === 'cam'
+  )
 
-def thread_sensor():
-    print("Mencari ESP32...")
-    port = cari_port_esp32()
-    if port is None:
-        print("ESP32 tidak ditemukan. Mode tanpa sensor.")
-        return
-    print(f"ESP32 ditemukan di: {port}")
+  $('tab-upload').classList.toggle(
+    'active',
+    tab === 'upload'
+  )
 
-    while True:
-        try:
-            ser    = serial.Serial(port, 115200, timeout=2)
-            buffer = ""
-            print(f"Sensor terhubung di {port}")
+  // MATIKAN KAMERA SAAT PINDAH
+  if (tab === 'upload' && cameraOn)
+    toggleCamera()
+}
 
-            while True:
-                if ser.in_waiting > 0:
-                    karakter = ser.read().decode('utf-8', errors='ignore')
-                    if karakter == '\n':
-                        baris  = buffer.strip()
-                        buffer = ""
-                        if baris.startswith('{'):
-                            try:
-                                data = json.loads(baris)
-                                with sensor_lock:
-                                    data_sensor['sensor_1'] = round(
-                                        data.get('s1', 0), 1)
-                                    data_sensor['sensor_2'] = round(
-                                        data.get('s2', 0), 1)
-                                    data_sensor['sensor_3'] = round(
-                                        data.get('s3', 0), 1)
-                                    data_sensor['rata_rata'] = round(
-                                        data.get('avg', 0), 1)
-                                    data_sensor['kondisi']  = cek_kondisi_sensor(
-                                        data.get('avg', 0))['pesan']
-                                    data_sensor['waktu']    = datetime.now(
-                                        ).strftime('%H:%M:%S')
-                                    data_sensor['valid']    = True
-                                print(f"[Sensor] avg={data.get('avg',0):.1f}%")
-                            except json.JSONDecodeError:
-                                pass
-                    else:
-                        buffer += karakter
 
-        except serial.SerialException as e:
-            print(f"Koneksi sensor terputus: {e}")
-            with sensor_lock:
-                data_sensor['valid'] = False
-            import time
-            time.sleep(5)
-        except Exception as e:
-            print(f"Error sensor: {e}")
-            break
+// ======================
+// TOGGLE CAMERA
+// ======================
+async function toggleCamera() {
 
-t = threading.Thread(target=thread_sensor, daemon=True)
-t.start()
+  const btn = $('btn-cam')
 
-# =====================
-# ENDPOINT
-# =====================
+  if (!cameraOn) {
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+    try {
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    try:
-        file = request.files.get('image')
-        if not file:
-            return jsonify({'error': 'Tidak ada gambar'}), 400
-
-        img_bytes = np.frombuffer(file.read(), np.uint8)
-        img       = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
-        if img is None:
-            return jsonify({'error': 'Gambar tidak valid'}), 400
-
-        # Ambil data sensor
-        with sensor_lock:
-            kadar_air    = data_sensor['rata_rata']
-            s1           = data_sensor['sensor_1']
-            s2           = data_sensor['sensor_2']
-            s3           = data_sensor['sensor_3']
-            sensor_ok    = data_sensor['valid']
-            waktu_sensor = data_sensor['waktu']
-
-        # Ekstrak 30 fitur dari gambar SAJA
-        # Tidak ditambah moisture agar cocok dengan model
-        features = extract_features(img)
-
-        # Prediksi
-        pred         = model.predict(features)
-        proba        = model.predict_proba(features)[0]
-        label_kamera = label_encoder.inverse_transform(pred)[0]
-        conf_kamera  = float(np.max(proba) * 100)
-
-        print(f"[Predict] label={label_kamera} conf={conf_kamera:.1f}%")
-        print(f"[Classes] {label_encoder.classes_}")
-        print(f"[Proba]   {proba}")
-
-        # Gabung hasil kamera + sensor
-        hasil         = gabung_hasil(label_kamera, conf_kamera, kadar_air)
-        durasi, saran = hitung_ketahanan(hasil['label'], hasil['confidence'])
-
-        # Estimasi tanggal
-        jam_est = 0
-        if 'hari' in durasi:
-            jam_est = int(durasi.split()[0]) * 24
-        elif 'jam' in durasi:
-            jam_est = int(durasi.split()[0])
-        estimasi = (datetime.now() + timedelta(
-            hours=jam_est)).strftime('%d %b %Y')
-
-        return jsonify({
-            'label'      : hasil['label'],
-            'confidence' : hasil['confidence'],
-            'sumber'     : hasil['sumber'],
-            'durasi'     : durasi,
-            'saran'      : saran,
-            'estimasi'   : estimasi,
-            'detail_kamera': {
-                cls: round(float(p * 100), 2)
-                for cls, p in zip(label_encoder.classes_, proba)
-            },
-            'sensor': {
-                'sensor_1' : s1,
-                'sensor_2' : s2,
-                'sensor_3' : s3,
-                'rata_rata': kadar_air,
-                'kondisi'  : hasil.get('pesan_sensor', '-'),
-                'level'    : hasil.get('level_sensor', '-'),
-                'terhubung': sensor_ok,
-                'waktu'    : waktu_sensor
-            }
+      stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: true
         })
 
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+      video.srcObject = stream
 
-@app.route('/sensor-status', methods=['GET'])
-def sensor_status():
-    with sensor_lock:
-        return jsonify(data_sensor)
+      cameraOn = true
 
-@app.route('/sensor', methods=['POST'])
-def sensor_post():
-    try:
-        body = request.json
-        s1   = float(body.get('sensor_1',  body.get('s1',  0)))
-        s2   = float(body.get('sensor_2',  body.get('s2',  0)))
-        s3   = float(body.get('sensor_3',  body.get('s3',  0)))
-        avg  = float(body.get('rata_rata', body.get('avg', 0)))
-        with sensor_lock:
-            data_sensor['sensor_1']  = round(s1,  1)
-            data_sensor['sensor_2']  = round(s2,  1)
-            data_sensor['sensor_3']  = round(s3,  1)
-            data_sensor['rata_rata'] = round(avg, 1)
-            data_sensor['kondisi']   = cek_kondisi_sensor(avg)['pesan']
-            data_sensor['waktu']     = datetime.now().strftime('%H:%M:%S')
-            data_sensor['valid']     = True
-        return jsonify({'status': 'ok', 'data': data_sensor})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+      btn.textContent = 'Kamera OFF'
 
-@app.route('/status', methods=['GET'])
-def status():
-    return jsonify({
-        'server' : 'online',
-        'sensor' : data_sensor['valid'],
-        'waktu'  : datetime.now().strftime('%H:%M:%S'),
-        'classes': label_encoder.classes_.tolist()
+      badge('Kamera aktif', 'on')
+
+    } catch (e) {
+
+      alert('Gagal akses kamera')
+    }
+
+  } else {
+
+    stream?.getTracks()
+      .forEach(t => t.stop())
+
+    video.srcObject = null
+
+    cameraOn = false
+
+    btn.textContent = 'Kamera ON'
+
+    badge('Kamera belum aktif')
+  }
+}
+
+
+// ======================
+// CAPTURE FRAME
+// ======================
+function captureFrame() {
+
+  const canvas =
+    document.createElement('canvas')
+
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+
+  canvas
+    .getContext('2d')
+    .drawImage(video, 0, 0)
+
+  return new Promise(resolve =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.9)
+  )
+}
+
+
+// ======================
+// PREDICT
+// ======================
+async function predict(blob = null) {
+
+  if (!blob && !cameraOn) {
+    alert('Nyalakan kamera dulu!')
+    return
+  }
+
+  badge('Menganalisis...')
+
+  if (!blob)
+    blob = await captureFrame()
+
+  const fd = new FormData()
+  fd.append('image', blob, 'img.jpg')
+
+  try {
+
+    const res = await fetch(SERVER + '/predict', {
+      method: 'POST',
+      body: fd
     })
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    const text = await res.text()
+    console.log("RESPONSE:", text)
+
+    let d
+    try {
+      d = JSON.parse(text)
+    } catch {
+      throw new Error("Response bukan JSON")
+    }
+
+    if (d.error) {
+      alert(d.error)
+      return
+    }
+
+    tampilHasil(d)
+    badge('Prediksi selesai', 'on')
+
+  } catch (e) {
+
+    console.error("ERROR:", e)
+    alert('Server error / response invalid')
+  }
+}
+
+
+// ======================
+// HANDLE FILE
+// ======================
+function handleFile(e) {
+
+  const file = e.target.files[0]
+
+  if (!file) return
+
+  tampilPreview(file)
+}
+
+
+// ======================
+// DRAG DROP
+// ======================
+function handleDrop(e) {
+
+  e.preventDefault()
+
+  const file = e.dataTransfer.files[0]
+
+  if (!file ||
+      !file.type.startsWith('image/')) {
+
+    alert('File harus gambar')
+    return
+  }
+
+  tampilPreview(file)
+}
+
+
+// ======================
+// PREVIEW
+// ======================
+function tampilPreview(file) {
+
+  uploadedBlob = file
+
+  $('preview-img').src =
+    URL.createObjectURL(file)
+
+  $('preview-img').style.display = 'block'
+
+  $('upload-placeholder').style.display = 'none'
+
+  $('btn-hapus').style.display = 'inline-flex'
+
+  $('upload-badge').style.display = 'block'
+
+  $('upload-badge').className = 'badge on'
+
+  $('upload-badge').textContent =
+    '✅ ' + file.name
+}
+
+
+// ======================
+// PREDICT UPLOAD
+// ======================
+function predictUpload() {
+
+  if (!uploadedBlob)
+    return alert('Upload foto dulu!')
+
+  predict(uploadedBlob)
+}
+
+
+// ======================
+// HAPUS FOTO
+// ======================
+function hapusFoto() {
+
+  uploadedBlob = null
+
+  $('preview-img').style.display = 'none'
+
+  $('preview-img').src = ''
+
+  $('upload-placeholder').style.display = 'block'
+
+  $('btn-hapus').style.display = 'none'
+
+  $('upload-badge').style.display = 'none'
+
+  $('file-input').value = ''
+
+  resetHasil()
+}
+
+
+// ======================
+// TAMPIL HASIL
+// ======================
+function tampilHasil(d) {
+
+  const warna = {
+
+    'Segar': '#22c55e',
+    'Setengah Segar': '#f97316',
+    'Busuk': '#ef4444'
+  }
+
+  const c = warna[d.label] || '#aaa'
+
+  $('hlabel').textContent =
+    d.label?.toUpperCase() || '-'
+
+  $('hlabel').style.color = c
+
+  $('hconf').textContent =
+    'Keyakinan: ' +
+    Number(d.confidence || 0).toFixed(1) +
+    '%'
+
+  $('hsumber').textContent =
+    d.sumber || '-'
+
+  const det = d.detail_kamera || {}
+
+  $('vsegar').textContent =
+    Number(det['Segar'] || 0).toFixed(1) + '%'
+
+  $('vsetengah').textContent =
+    Number(det['Setengah Segar'] || 0).toFixed(1) + '%'
+
+  $('vbusuk').textContent =
+    Number(det['Busuk'] || 0).toFixed(1) + '%'
+
+  $('durasi').textContent =
+    d.durasi || '-'
+
+  $('durasi').style.color = c
+
+  $('saran').textContent =
+    d.saran || '-'
+
+  $('est').textContent =
+    d.estimasi ?
+    'Estimasi: ' + d.estimasi : '-'
+
+  $('sumber').textContent =
+    d.sumber || '-'
+}
+
+
+// ======================
+// RESET HASIL
+// ======================
+function resetHasil() {
+
+  $('hlabel').textContent = '-'
+  $('hconf').textContent = '-'
+  $('hsumber').textContent = '-'
+
+  $('vsegar').textContent = '- %'
+  $('vsetengah').textContent = '- %'
+  $('vbusuk').textContent = '- %'
+
+  $('durasi').textContent = '-'
+  $('saran').textContent = '-'
+  $('est').textContent = '-'
+  $('sumber').textContent = '-'
+
+  $('hlabel').style.color = '#fff'
+  $('durasi').style.color = '#fff'
+}
