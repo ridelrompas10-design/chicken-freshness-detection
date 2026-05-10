@@ -1,4 +1,4 @@
-const SERVER = 'https://web-production-d351a.up.railway.app'
+const SERVER = 'https://sistem-deteksi-kesegaran-daging-ayam.up.railway.app'
 
 let stream = null
 let cameraOn = false
