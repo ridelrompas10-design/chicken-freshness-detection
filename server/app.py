@@ -83,35 +83,36 @@ def extract_features(img, moisture=70.0):
 # CEK KONDISI SENSOR
 # =====================
 def cek_kondisi_sensor(kadar_air):
-    if kadar_air > 92:
+
+    kadar_air = float(kadar_air)
+
+    # ==========================================
+    # SEMAKIN TINGGI KADAR AIR
+    # = SEMAKIN TIDAK LAYAK
+    # ==========================================
+
+    if kadar_air >= 85:
+
         return {
-            'valid' : False,
-            'pesan' : 'Daging kemungkinan masih beku. Tunggu 5-10 menit.',
-            'level' : 'warning'
+            'label': 'busuk',
+            'pesan': 'Kadar air sangat tinggi - daging tidak layak konsumsi',
+            'warna': '#ef4444'
         }
-    elif kadar_air < 5:
-        return {
-            'valid' : False,
-            'pesan' : 'Sensor tidak terbaca. Pastikan menempel pada daging.',
-            'level' : 'error'
-        }
-    elif kadar_air >= 75:
-        return {
-            'valid' : True,
-            'pesan' : 'Kadar air normal - daging segar',
-            'level' : 'ok'
-        }
+
     elif kadar_air >= 60:
+
         return {
-            'valid' : True,
-            'pesan' : 'Kadar air sedang - setengah segar',
-            'level' : 'ok'
+            'label': 'cukup_segar',
+            'pesan': 'Kadar air meningkat - kualitas mulai menurun',
+            'warna': '#f97316'
         }
+
     else:
+
         return {
-            'valid' : True,
-            'pesan' : 'Kadar air rendah - daging busuk',
-            'level' : 'ok'
+            'label': 'segar',
+            'pesan': 'Kadar air normal - daging masih segar',
+            'warna': '#22c55e'
         }
 
 # =====================
