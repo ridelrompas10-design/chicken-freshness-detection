@@ -140,7 +140,7 @@ def hitung_ketahanan(label, conf):
 def gabung_hasil(label_kamera, conf_kamera, kadar_air):
     kondisi = cek_kondisi_sensor(kadar_air)
 
-    if not kondisi['valid']:
+    if kondisi['label'] == 'busuk':
         return {
             'label'       : label_kamera,
             'confidence'  : round(conf_kamera, 2),
